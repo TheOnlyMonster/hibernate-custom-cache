@@ -1,12 +1,7 @@
 package com.example.cache.region;
 
-import java.util.concurrent.locks.Lock;
-
-import org.hibernate.engine.spi.SharedSessionContractImplementor;
-
 import com.example.cache.metrics.MetricsCollector;
 import com.example.cache.storage.InMemoryLRUCache;
-
 
 public class EntityRegionImpl {
     private final String regionName;
@@ -20,18 +15,18 @@ public class EntityRegionImpl {
     }
 
     public Object get(Object key) {
-      Object value = cache.get(key);
-      if (value == null)
-        metrics.miss();
-      else
-        metrics.hit();
-      return value;
+        Object value = cache.get(key);
+        if (value == null) {
+            metrics.miss();
+        } else {
+            metrics.hit();
+        }
+        return value;
     }
-    
 
     public void put(Object key, Object value) {
-      cache.put(key, value);
-      metrics.put();
+        cache.put(key, value);
+        metrics.put();
     }
 
     public void evict(Object key) {
@@ -43,6 +38,11 @@ public class EntityRegionImpl {
         cache.clear();
     }
 
-    public String getRegionName() { return regionName; }
-    public MetricsCollector getMetrics() { return metrics; }
+    public String getRegionName() {
+        return regionName;
+    }
+
+    public MetricsCollector getMetrics() {
+        return metrics;
+    }
 }

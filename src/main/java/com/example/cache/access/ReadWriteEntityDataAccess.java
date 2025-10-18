@@ -1,18 +1,15 @@
 package com.example.cache.access;
 
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.hibernate.cache.CacheException;
 import org.hibernate.cache.spi.DomainDataRegion;
 import org.hibernate.cache.spi.access.AccessType;
 import org.hibernate.cache.spi.access.EntityDataAccess;
 import org.hibernate.cache.spi.access.SoftLock;
-import org.hibernate.engine.spi.SessionFactoryImplementor; 
+import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.SharedSessionContractImplementor;
 import org.hibernate.persister.entity.EntityPersister;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.example.cache.region.CacheKey;
 import com.example.cache.region.DomainDataRegionAdapter;
@@ -20,98 +17,63 @@ import com.example.cache.region.EntityRegionImpl;
 
 public class ReadWriteEntityDataAccess implements EntityDataAccess {
 
-    private static final int LOCK_TIMEOUT_SECONDS = 10;
-
     private final EntityRegionImpl entityRegion;
     private final DomainDataRegionAdapter domainDataRegion;
-    private final ReentrantReadWriteLock readWriteLock;
+    private final ConcurrentHashMap<Object, ReadWriteSoftLock> lockMap = new ConcurrentHashMap<>();
+    private volatile ReadWriteSoftLock regionLock;
 
     public ReadWriteEntityDataAccess(EntityRegionImpl entityRegion, 
                                    DomainDataRegionAdapter domainDataRegion) {
         this.entityRegion = entityRegion;
         this.domainDataRegion = domainDataRegion;
-        this.readWriteLock = new ReentrantReadWriteLock();
     }
 
     @Override
     public boolean contains(Object key) {
-        try {
-            if (!readWriteLock.readLock().tryLock(LOCK_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                return false;
-            }
-            try {
-                Object value = entityRegion.get(key);
-                return value != null && !(value instanceof SoftLock);
-            } finally {
-                readWriteLock.readLock().unlock();
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+        if (regionLock != null || lockMap.containsKey(key)) {
             return false;
         }
+        return entityRegion.get(key) != null;
     }
 
     @Override
     public Object get(SharedSessionContractImplementor session, Object key) {
-        try {
-            if (!readWriteLock.readLock().tryLock(LOCK_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                return null;
-            }
-            try {
-                Object value = entityRegion.get(key);
-                if (value instanceof SoftLock) {
-                    return null;
-                }
-                return value;
-            } finally {
-                readWriteLock.readLock().unlock();
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+        if (regionLock != null || lockMap.containsKey(key)) {
             return null;
         }
+        return entityRegion.get(key);
     }
 
     @Override
     public SoftLock lockItem(SharedSessionContractImplementor session, Object key, Object version) {
-        try {
-            if (!readWriteLock.writeLock().tryLock(LOCK_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                throw new CacheException("Could not acquire write lock for: " + key);
-            }
-            try {
-                Object current = entityRegion.get(key);
-                ReadWriteSoftLock lock = new ReadWriteSoftLock(current, version);
-                entityRegion.put(key, lock);
-                return lock;
-            } finally {
-                readWriteLock.writeLock().unlock();
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new CacheException("Interrupted while locking: " + key, e);
+        if (regionLock != null) {
+            throw new CacheException("Region is locked, cannot lock individual item: " + key);
         }
+        
+        Object current = entityRegion.get(key);
+        ReadWriteSoftLock lock = new ReadWriteSoftLock(key, current, version);
+        ReadWriteSoftLock existing = lockMap.putIfAbsent(key, lock);
+        
+        if (existing != null) {
+            throw new CacheException("Key already locked: " + key);
+        }
+        
+        entityRegion.evict(key);
+        return lock;
     }
 
     @Override
     public void unlockItem(SharedSessionContractImplementor session, Object key, SoftLock lock) {
-        try {
-            if (!readWriteLock.writeLock().tryLock(LOCK_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                return;
-            }
-            try {
-                if (lock instanceof ReadWriteSoftLock) {
-                    Object value = ((ReadWriteSoftLock) lock).getActualValue();
-                    if (value != null) {
-                        entityRegion.put(key, value);
-                    } else {
-                        entityRegion.evict(key);
-                    }
-                }
-            } finally {
-                readWriteLock.writeLock().unlock();
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+        if (!(lock instanceof ReadWriteSoftLock)) {
+            return;
+        }
+        
+        ReadWriteSoftLock rwLock = (ReadWriteSoftLock) lock;
+        lockMap.remove(rwLock.getKey());
+        
+        Object oldValue = rwLock.getOldValue();
+        if (oldValue != null) {
+            entityRegion.put(key, oldValue);
         }
     }
 
@@ -119,63 +81,30 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
     public boolean putFromLoad(SharedSessionContractImplementor session,
                              Object key,
                              Object value,
-                             Object txTimestamp,
+                             Object version,
                              boolean minimalPutOverride) {
-        try {
-            if (!readWriteLock.writeLock().tryLock(LOCK_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                return false;
-            }
-            try {
-                if (minimalPutOverride && contains(key)) {
-                    return false;
-                }
-
-                Object current = entityRegion.get(key);
-                if (current instanceof SoftLock) {
-                    return false;
-                }
-
-                entityRegion.put(key, value);
-                return true;
-            } finally {
-                readWriteLock.writeLock().unlock();
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+        if (regionLock != null || lockMap.containsKey(key)) {
             return false;
         }
+
+        if (minimalPutOverride && entityRegion.get(key) != null) {
+            return false;
+        }
+
+        entityRegion.put(key, value);
+        return true;
     }
 
     @Override
     public void evict(Object key) {
-        try {
-            if (!readWriteLock.writeLock().tryLock(LOCK_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                return;
-            }
-            try {
-                entityRegion.evict(key);
-            } finally {
-                readWriteLock.writeLock().unlock();
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        lockMap.remove(key);
+        entityRegion.evict(key);
     }
 
     @Override
     public void evictAll() {
-        try {
-            if (!readWriteLock.writeLock().tryLock(LOCK_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                return;
-            }
-            try {
-                entityRegion.evictAll();
-            } finally {
-                readWriteLock.writeLock().unlock();
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        lockMap.clear();
+        entityRegion.evictAll();
     }
 
     @Override
@@ -205,13 +134,14 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
             (cacheKey == null ? "null" : cacheKey.getClass().getName()));
     }
 
-    
-
     @Override
     public boolean insert(SharedSessionContractImplementor session,
                         Object key,
                         Object value,
                         Object version) {
+        if (regionLock != null) {
+            return false;
+        }
         return false;
     }
 
@@ -221,39 +151,33 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
                         Object value,
                         Object currentVersion,
                         Object previousVersion) {
-        lockItem(session, key, previousVersion);
-        return true;
+        if (regionLock != null) {
+            return false;
+        }
+        
+        SoftLock lock = lockItem(session, key, previousVersion);
+        return lock != null;
     }
 
     @Override
     public boolean putFromLoad(SharedSessionContractImplementor session,
                              Object key,
                              Object value,
-                             Object txTimestamp) {
-        return putFromLoad(session, key, value, txTimestamp, false);
+                             Object version) {
+        return putFromLoad(session, key, value, version, false);
     }
-
-   
 
     @Override
     public boolean afterInsert(SharedSessionContractImplementor session,
                              Object key,
                              Object value,
                              Object version) {
-        try {
-            if (!readWriteLock.writeLock().tryLock(LOCK_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                return false;
-            }
-            try {
-                entityRegion.put(key, value);
-                return true;
-            } finally {
-                readWriteLock.writeLock().unlock();
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+        if (regionLock != null) {
             return false;
         }
+        
+        entityRegion.put(key, value);
+        return true;
     }
 
     @Override
@@ -262,41 +186,61 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
                              Object value,
                              Object currentVersion,
                              Object previousVersion,
-        SoftLock lock) {
-      try {
-        if (!readWriteLock.writeLock().tryLock(LOCK_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-          return false;
+                             SoftLock lock) {
+        if (regionLock != null) {
+            return false;
         }
-        try {
-          unlockItem(session, key, lock);
-          entityRegion.put(key, value);
-          return true;
-        } finally {
-          readWriteLock.writeLock().unlock();
+        
+        if (lock instanceof ReadWriteSoftLock) {
+            ReadWriteSoftLock rwLock = (ReadWriteSoftLock) lock;
+            lockMap.remove(rwLock.getKey());
         }
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-        return false;
-      }
+        
+        entityRegion.put(key, value);
+        return true;
     }
     
     @Override
     public void remove(SharedSessionContractImplementor session, Object key) {
-        evict(key);
+        if (regionLock != null) {
+            return;
+        }
+        
+        SoftLock lock = lockItem(session, key, null);
+        if (lock != null) {
+            entityRegion.evict(key);
+            unlockItem(session, key, lock);
+        }
     }
 
     @Override
     public void removeAll(SharedSessionContractImplementor session) {
-      evictAll();
+        SoftLock lock = lockRegion();
+        try {
+            entityRegion.evictAll();
+        } finally {
+            unlockRegion(lock);
+        }
     }
     
-  @Override
-  public SoftLock lockRegion() {
-      throw new UnsupportedOperationException("Region-wide locking is not supported.");
-  }
+    @Override
+    public SoftLock lockRegion() {
+        ReadWriteSoftLock lock = new ReadWriteSoftLock(null, null, null);
+        
+        if (regionLock != null) {
+            throw new CacheException("Region already locked");
+        }
+        
+        regionLock = lock;
+        
+        return lock;
+    }
 
-  @Override
-  public void unlockRegion(SoftLock lock) {
-      throw new UnsupportedOperationException("Region-wide unlocking is not supported.");
-  }
+    @Override
+    public void unlockRegion(SoftLock lock) {
+        if (lock instanceof ReadWriteSoftLock && lock == regionLock) {
+            regionLock = null;
+            lockMap.clear();
+        }
+    }
 }

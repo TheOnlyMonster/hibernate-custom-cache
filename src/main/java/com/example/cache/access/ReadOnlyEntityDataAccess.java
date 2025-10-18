@@ -23,13 +23,13 @@ public class ReadOnlyEntityDataAccess implements EntityDataAccess {
   }
 
   @Override
-  public boolean contains(Object arg0) {
-    return entityRegion.get(arg0) != null;
+  public boolean contains(Object key) {
+    return entityRegion.get(key) != null;
   }
 
   @Override
-  public void evict(Object arg0) {
-    entityRegion.evict(arg0);
+  public void evict(Object key) {
+    entityRegion.evict(key);
   }
 
   @Override
@@ -38,8 +38,8 @@ public class ReadOnlyEntityDataAccess implements EntityDataAccess {
   }
 
   @Override
-  public Object get(SharedSessionContractImplementor session, Object arg1) {
-    return entityRegion.get(arg1);
+  public Object get(SharedSessionContractImplementor session, Object key) {
+    return entityRegion.get(key);
   }
 
   @Override
@@ -53,7 +53,7 @@ public class ReadOnlyEntityDataAccess implements EntityDataAccess {
   }
 
   @Override
-  public SoftLock lockItem(SharedSessionContractImplementor arg0, Object arg1, Object arg2) {
+  public SoftLock lockItem(SharedSessionContractImplementor session, Object key, Object version) {
     return null;
   }
 
@@ -63,13 +63,13 @@ public class ReadOnlyEntityDataAccess implements EntityDataAccess {
   }
 
   @Override
-  public boolean putFromLoad(SharedSessionContractImplementor session, Object key, Object value, Object txTimestamp) {
+  public boolean putFromLoad(SharedSessionContractImplementor session, Object key, Object value, Object version) {
     entityRegion.put(key, value);
     return true;
   }
 
   @Override
-  public boolean putFromLoad(SharedSessionContractImplementor session, Object key, Object value, Object txTimestamp,
+  public boolean putFromLoad(SharedSessionContractImplementor session, Object key, Object value, Object version,
       boolean minimalPutOverride) {
     if(minimalPutOverride && contains(key)) {
       return false;
@@ -80,35 +80,28 @@ public class ReadOnlyEntityDataAccess implements EntityDataAccess {
 
   @Override
   public void remove(SharedSessionContractImplementor session, Object key) {
-    // Read-only access does not support remove operation
   }
 
   @Override
   public void removeAll(SharedSessionContractImplementor session) {
-    // Read-only access does not support remove operation
-  }
-  
-
-  @Override
-  public void unlockItem(SharedSessionContractImplementor arg0, Object arg1, SoftLock arg2) {
-    // No action needed for read-only access
   }
 
   @Override
-  public void unlockRegion(SoftLock arg0) {
-    // No action needed for read-only access
+  public void unlockItem(SharedSessionContractImplementor session, Object key, SoftLock lock) {
   }
 
   @Override
-  public boolean afterInsert(SharedSessionContractImplementor arg0, Object arg1, Object arg2, Object arg3) {
-    // Read-only access does not support afterInsert operation
+  public void unlockRegion(SoftLock lock) {
+  }
+
+  @Override
+  public boolean afterInsert(SharedSessionContractImplementor session, Object key, Object value, Object version) {
     return false;
   }
 
   @Override
-  public boolean afterUpdate(SharedSessionContractImplementor arg0, Object arg1, Object arg2, Object arg3, Object arg4,
-      SoftLock arg5) {
-    // Read-only access does not support afterUpdate operation
+  public boolean afterUpdate(SharedSessionContractImplementor session, Object key, Object value, Object currentVersion, Object previousVersion,
+      SoftLock lock) {
     return false;
   }
 
@@ -117,10 +110,7 @@ public class ReadOnlyEntityDataAccess implements EntityDataAccess {
                                 EntityPersister persister,
                                 SessionFactoryImplementor factory,
                                 String tenantIdentifier) {
-
-      String entityName = persister.getRootEntityName(); 
-
-      return new CacheKey(id, entityName, tenantIdentifier);
+      return new CacheKey(id, persister.getRootEntityName(), tenantIdentifier);
   }
 
   @Override
@@ -131,16 +121,13 @@ public class ReadOnlyEntityDataAccess implements EntityDataAccess {
       throw new IllegalArgumentException("Unexpected cacheKey type: " + (cacheKey == null ? "null" : cacheKey.getClass()));
   }
 
-
   @Override
-  public boolean insert(SharedSessionContractImplementor arg0, Object arg1, Object arg2, Object arg3) {
-    // Read-only access does not support insert operation
+  public boolean insert(SharedSessionContractImplementor session, Object key, Object value, Object version) {
     return false;
   }
 
   @Override
-  public boolean update(SharedSessionContractImplementor arg0, Object arg1, Object arg2, Object arg3, Object arg4) {
-    // Read-only access does not support update operation
+  public boolean update(SharedSessionContractImplementor session, Object key, Object value, Object currentVersion, Object previousVersion) {
     return false;
   }
   
