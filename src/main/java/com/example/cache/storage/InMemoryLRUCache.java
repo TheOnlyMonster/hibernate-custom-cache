@@ -51,34 +51,35 @@ public class InMemoryLRUCache<K, V> {
   }
 
   public void put(K key, V value) {
-      Node existing = map.get(key);
-      // Fast path for existing key
-      if (existing != null) {
-        existing.value = value;
-        existing.lastAccess = System.currentTimeMillis();
-        moveToFront(existing);
+    Node existing = map.get(key);
+    // Fast path for existing key
+    if (existing != null) {
+      existing.value = value;
+      existing.lastAccess = System.currentTimeMillis();
+      moveToFront(existing);
+      return;
+    }
+    lock.lock();
+    try {
+      Node n = map.get(key);
+      // Double-check after acquiring lock
+      if (n != null) {
+        n.value = value;
+        n.lastAccess = System.currentTimeMillis();
+        moveToFront(n);
         return;
       }
-      lock.lock();
-      try {
-        Node n = map.get(key);
-        // Double-check after acquiring lock
-        if (n != null) {
-            n.value = value;
-            n.lastAccess = System.currentTimeMillis();
-            moveToFront(n);
-            return;
-        }
-        Node newNode = new Node(key, value);
-        addFront(newNode);
-        map.put(key, newNode);
-        if (size.incrementAndGet() > maxEntries) {
-            evictTail();
-        }
+      Node newNode = new Node(key, value);
+      addFront(newNode);
+      map.put(key, newNode);
+      if (size.incrementAndGet() > maxEntries) {
+        evictTail();
+      }
     } finally {
-        lock.unlock();
+      lock.unlock();
     }
   }
+  
   public void remove(K key) {
     lock.lock();
     try {

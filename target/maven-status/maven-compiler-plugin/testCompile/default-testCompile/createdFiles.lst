@@ -1,1 +1,2 @@
 com\example\cache\storage\InMemoryLRUCacheTest.class
+com\example\cache\region\EntityRegionImplTest.class

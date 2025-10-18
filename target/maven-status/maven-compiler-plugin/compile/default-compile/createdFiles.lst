@@ -1,2 +1,5 @@
-com\example\cache\storage\InMemoryLRUCache.class
+com\example\cache\region\EntityRegionImpl.class
+com\example\cache\metrics\MetricsCollector.class
 com\example\cache\storage\InMemoryLRUCache$Node.class
+com\example\cache\regionfactory\CustomRegionFactory.class
+com\example\cache\storage\InMemoryLRUCache.class
