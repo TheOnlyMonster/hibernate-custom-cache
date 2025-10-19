@@ -22,14 +22,24 @@ public class ReadOnlyEntityDataAccess implements EntityDataAccess {
     this.domainDataRegion = domainDataRegion;
   }
 
+
+  private CacheKey toCacheKey(Object key) {
+    if (key instanceof CacheKey) {
+      return (CacheKey) key;
+    }
+    throw new IllegalArgumentException(
+      "Expected CacheKey but got: " + (key == null ? "null" : key.getClass().getName())
+    );
+  }
+
   @Override
   public boolean contains(Object key) {
-    return entityRegion.get(key) != null;
+    return entityRegion.get(toCacheKey(key)) != null;
   }
 
   @Override
   public void evict(Object key) {
-    entityRegion.evict(key);
+    entityRegion.evict(toCacheKey(key));
   }
 
   @Override
@@ -39,7 +49,7 @@ public class ReadOnlyEntityDataAccess implements EntityDataAccess {
 
   @Override
   public Object get(SharedSessionContractImplementor session, Object key) {
-    return entityRegion.get(key);
+    return entityRegion.get(toCacheKey(key));
   }
 
   @Override
@@ -64,7 +74,7 @@ public class ReadOnlyEntityDataAccess implements EntityDataAccess {
 
   @Override
   public boolean putFromLoad(SharedSessionContractImplementor session, Object key, Object value, Object version) {
-    entityRegion.put(key, value);
+    entityRegion.put(toCacheKey(key), value);
     return true;
   }
 
@@ -74,16 +84,18 @@ public class ReadOnlyEntityDataAccess implements EntityDataAccess {
     if(minimalPutOverride && contains(key)) {
       return false;
     }
-    entityRegion.put(key, value);
+    entityRegion.put(toCacheKey(key), value);
     return true;
   }
 
   @Override
   public void remove(SharedSessionContractImplementor session, Object key) {
+    entityRegion.evict(toCacheKey(key));
   }
 
   @Override
   public void removeAll(SharedSessionContractImplementor session) {
+    entityRegion.evictAll();
   }
 
   @Override

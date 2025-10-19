@@ -26,14 +26,14 @@ public class CustomRegionFactory implements RegionFactory {
     private static final long DEFAULT_TTL_MS = 60 * 60 * 1000; 
 
     @Override
-    public void stop() {
-        metricsMap.clear();
-    }
-
-    @Override
     public void start(SessionFactoryOptions settings, Map<String, Object> configValues) throws CacheException {
         this.settings = settings;
         this.nextTimestamp.set(System.currentTimeMillis());
+    }
+
+    @Override
+    public void stop() {
+        metricsMap.clear();
     }
 
     @Override
@@ -48,7 +48,11 @@ public class CustomRegionFactory implements RegionFactory {
 
     @Override
     public String qualify(String regionName) {
-        return settings.getSessionFactoryName() + '.' + regionName;
+        String sessionFactoryName = settings.getSessionFactoryName();
+        if (sessionFactoryName == null) {
+            sessionFactoryName = "default";
+        }
+        return sessionFactoryName + '.' + regionName;
     }
 
     @Override
@@ -57,11 +61,16 @@ public class CustomRegionFactory implements RegionFactory {
     }
 
     @Override
-    public DomainDataRegion buildDomainDataRegion(DomainDataRegionConfig regionConfig,
+    public DomainDataRegion buildDomainDataRegion(
+            DomainDataRegionConfig regionConfig,
             DomainDataRegionBuildingContext buildingContext) {
         
         String regionName = regionConfig.getRegionName();
-        MetricsCollector metrics = metricsMap.computeIfAbsent(regionName, k -> new MetricsCollector());
+        
+        MetricsCollector metrics = metricsMap.computeIfAbsent(
+            regionName, 
+            k -> new MetricsCollector()
+        );
 
         EntityRegionImpl entityRegion = new EntityRegionImpl(
             regionName,
@@ -69,16 +78,35 @@ public class CustomRegionFactory implements RegionFactory {
             DEFAULT_TTL_MS,
             metrics
         );
-        return new DomainDataRegionAdapter(entityRegion, this, null);
+        
+        return new DomainDataRegionAdapter(entityRegion, this, regionConfig);
     }
 
     @Override
-    public QueryResultsRegion buildQueryResultsRegion(String regionName, SessionFactoryImplementor sessionFactory) {
-        throw new UnsupportedOperationException("Query cache not supported");
+    public QueryResultsRegion buildQueryResultsRegion(
+            String regionName, 
+            SessionFactoryImplementor sessionFactory) {
+        throw new UnsupportedOperationException(
+            "Query results cache not supported. Region: " + regionName
+        );
     }
 
     @Override
-    public TimestampsRegion buildTimestampsRegion(String regionName, SessionFactoryImplementor sessionFactory) {
-        throw new UnsupportedOperationException("Timestamps cache not supported"); 
+    public TimestampsRegion buildTimestampsRegion(
+            String regionName, 
+            SessionFactoryImplementor sessionFactory) {
+        throw new UnsupportedOperationException(
+            "Timestamps cache not supported. Region: " + regionName
+        );
+    }
+    
+
+    public MetricsCollector getMetrics(String regionName) {
+        return metricsMap.get(regionName);
+    }
+    
+
+    public Map<String, MetricsCollector> getAllMetrics() {
+        return new ConcurrentHashMap<>(metricsMap);
     }
 }

@@ -19,7 +19,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
 
     private final EntityRegionImpl entityRegion;
     private final DomainDataRegionAdapter domainDataRegion;
-    private final ConcurrentHashMap<Object, ReadWriteSoftLock> lockMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<CacheKey, ReadWriteSoftLock> lockMap = new ConcurrentHashMap<>();
     private volatile ReadWriteSoftLock regionLock;
 
     public ReadWriteEntityDataAccess(EntityRegionImpl entityRegion, 
@@ -28,20 +28,34 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         this.domainDataRegion = domainDataRegion;
     }
 
+    /**
+     * Convert Object key to CacheKey. Hibernate may pass either raw keys or CacheKey objects.
+     */
+    private CacheKey toCacheKey(Object key) {
+        if (key instanceof CacheKey) {
+            return (CacheKey) key;
+        }
+        throw new IllegalArgumentException(
+            "Expected CacheKey but got: " + (key == null ? "null" : key.getClass().getName())
+        );
+    }
+
     @Override
     public boolean contains(Object key) {
-        if (regionLock != null || lockMap.containsKey(key)) {
+        CacheKey cacheKey = toCacheKey(key);
+        if (regionLock != null || lockMap.containsKey(cacheKey)) {
             return false;
         }
-        return entityRegion.get(key) != null;
+        return entityRegion.get(cacheKey) != null;
     }
 
     @Override
     public Object get(SharedSessionContractImplementor session, Object key) {
-        if (regionLock != null || lockMap.containsKey(key)) {
+        CacheKey cacheKey = toCacheKey(key);
+        if (regionLock != null || lockMap.containsKey(cacheKey)) {
             return null;
         }
-        return entityRegion.get(key);
+        return entityRegion.get(cacheKey);
     }
 
     @Override
@@ -50,15 +64,16 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
             throw new CacheException("Region is locked, cannot lock individual item: " + key);
         }
         
-        Object current = entityRegion.get(key);
-        ReadWriteSoftLock lock = new ReadWriteSoftLock(key, current, version);
-        ReadWriteSoftLock existing = lockMap.putIfAbsent(key, lock);
+        CacheKey cacheKey = toCacheKey(key);
+        Object current = entityRegion.get(cacheKey);
+        ReadWriteSoftLock lock = new ReadWriteSoftLock(cacheKey, current, version);
+        ReadWriteSoftLock existing = lockMap.putIfAbsent(cacheKey, lock);
         
         if (existing != null) {
             throw new CacheException("Key already locked: " + key);
         }
         
-        entityRegion.evict(key);
+        entityRegion.evict(cacheKey);
         return lock;
     }
 
@@ -69,11 +84,12 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         }
         
         ReadWriteSoftLock rwLock = (ReadWriteSoftLock) lock;
-        lockMap.remove(rwLock.getKey());
+        CacheKey cacheKey = rwLock.getKey();
+        lockMap.remove(cacheKey);
         
         Object oldValue = rwLock.getOldValue();
         if (oldValue != null) {
-            entityRegion.put(key, oldValue);
+            entityRegion.put(cacheKey, oldValue);
         }
     }
 
@@ -83,22 +99,25 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
                              Object value,
                              Object version,
                              boolean minimalPutOverride) {
-        if (regionLock != null || lockMap.containsKey(key)) {
+        CacheKey cacheKey = toCacheKey(key);
+        
+        if (regionLock != null || lockMap.containsKey(cacheKey)) {
             return false;
         }
 
-        if (minimalPutOverride && entityRegion.get(key) != null) {
+        if (minimalPutOverride && entityRegion.get(cacheKey) != null) {
             return false;
         }
 
-        entityRegion.put(key, value);
+        entityRegion.put(cacheKey, value);
         return true;
     }
 
     @Override
     public void evict(Object key) {
-        lockMap.remove(key);
-        entityRegion.evict(key);
+        CacheKey cacheKey = toCacheKey(key);
+        lockMap.remove(cacheKey);
+        entityRegion.evict(cacheKey);
     }
 
     @Override
@@ -176,7 +195,8 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
             return false;
         }
         
-        entityRegion.put(key, value);
+        CacheKey cacheKey = toCacheKey(key);
+        entityRegion.put(cacheKey, value);
         return true;
     }
 
@@ -196,7 +216,8 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
             lockMap.remove(rwLock.getKey());
         }
         
-        entityRegion.put(key, value);
+        CacheKey cacheKey = toCacheKey(key);
+        entityRegion.put(cacheKey, value);
         return true;
     }
     
@@ -206,9 +227,10 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
             return;
         }
         
+        CacheKey cacheKey = toCacheKey(key);
         SoftLock lock = lockItem(session, key, null);
         if (lock != null) {
-            entityRegion.evict(key);
+            entityRegion.evict(cacheKey);
             unlockItem(session, key, lock);
         }
     }

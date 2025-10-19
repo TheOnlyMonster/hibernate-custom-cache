@@ -5,7 +5,7 @@ import com.example.cache.storage.InMemoryLRUCache;
 
 public class EntityRegionImpl {
     private final String regionName;
-    private final InMemoryLRUCache<Object, Object> cache;
+    private final InMemoryLRUCache<CacheKey, Object> cache;
     private final MetricsCollector metrics;
 
     public EntityRegionImpl(String regionName, int maxEntries, long ttlMillis, MetricsCollector metrics) {
@@ -14,7 +14,7 @@ public class EntityRegionImpl {
         this.metrics = metrics;
     }
 
-    public Object get(Object key) {
+    public Object get(CacheKey key) {
         Object value = cache.get(key);
         if (value == null) {
             metrics.miss();
@@ -24,12 +24,12 @@ public class EntityRegionImpl {
         return value;
     }
 
-    public void put(Object key, Object value) {
+    public void put(CacheKey key, Object value) {
         cache.put(key, value);
         metrics.put();
     }
 
-    public void evict(Object key) {
+    public void evict(CacheKey key) {
         cache.remove(key);
         metrics.evict();
     }
