@@ -36,39 +36,39 @@ public class DomainDataRegionAdapter implements DomainDataRegion {
 
     @Override
     public EntityDataAccess getEntityDataAccess(NavigableRole rootEntityRole) {
-      return entityAccessMap.computeIfAbsent(rootEntityRole, role -> {
-        AccessType accessType = determineAccessType(role);
-        return createEntityDataAccess(accessType);
-      });
+        return entityAccessMap.computeIfAbsent(rootEntityRole, role -> {
+            AccessType accessType = determineAccessType(role);
+            return createEntityDataAccess(accessType);
+        });
     }
     
     @Override
     public CollectionDataAccess getCollectionDataAccess(NavigableRole collectionRole) {
-      return collectionAccessMap.computeIfAbsent(collectionRole, role -> {
-        AccessType accessType = determineAccessType(role);
-        return createCollectionDataAccess(accessType);
-      });
+        return collectionAccessMap.computeIfAbsent(collectionRole, role -> {
+            AccessType accessType = determineAccessType(role);
+            return createCollectionDataAccess(accessType);
+        });
     }
     
     
 
     @Override
     public NaturalIdDataAccess getNaturalIdDataAccess(NavigableRole rootEntityRole) {
-      return naturalIdAccessMap.computeIfAbsent(rootEntityRole, role -> {
-        AccessType accessType = determineAccessType(role);
-        return createNaturalIdDataAccess(accessType);
-      });
+        return naturalIdAccessMap.computeIfAbsent(rootEntityRole, role -> {
+            AccessType accessType = determineAccessType(role);
+            return createNaturalIdDataAccess(accessType);
+        });
     }
 
 
     private AccessType determineAccessType(NavigableRole role) {
-      for (var entityConfig : regionConfig.getEntityCaching()) {
-        if (entityConfig.getNavigableRole().equals(role)) {
-          return entityConfig.getAccessType();
+        for (var entityConfig : regionConfig.getEntityCaching()) {
+            if (entityConfig.getNavigableRole().equals(role)) {
+                return entityConfig.getAccessType();
+            }
         }
-      }
 
-      return regionFactory.getDefaultAccessType();
+        return regionFactory.getDefaultAccessType();
     }
     
     
