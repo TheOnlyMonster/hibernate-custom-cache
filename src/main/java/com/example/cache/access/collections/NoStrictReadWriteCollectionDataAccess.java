@@ -168,7 +168,7 @@ public class NoStrictReadWriteCollectionDataAccess implements CollectionDataAcce
             throw new IllegalArgumentException("EntityPersister cannot be null");
         }
 
-        return new CollectionCacheKey(id, tenantIdentifier, tenantIdentifier);
+        return new CollectionCacheKey(id, persister.getRole(), tenantIdentifier);
     }
 
     @Override

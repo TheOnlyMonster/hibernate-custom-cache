@@ -12,7 +12,6 @@ import org.hibernate.engine.spi.SharedSessionContractImplementor;
 import org.hibernate.persister.collection.CollectionPersister;
 
 import com.example.cache.access.ReadWriteSoftLock;
-import com.example.cache.access.entities.EntityCacheKey;
 import com.example.cache.region.DomainDataRegionAdapter;
 import com.example.cache.region.EntityRegionImpl;
 import com.example.cache.utils.CustomUtils;
@@ -320,8 +319,8 @@ public class ReadWriteCollectionDataAccess implements CollectionDataAccess {
         if (cacheKey == null) {
             throw new IllegalArgumentException("Cache key cannot be null");
         }
-        if (cacheKey instanceof EntityCacheKey) {
-            return ((EntityCacheKey) cacheKey).getId();
+        if (cacheKey instanceof CollectionCacheKey) {
+            return ((CollectionCacheKey) cacheKey).getOwnerId();
         }
         throw new IllegalArgumentException(
             "Unexpected cacheKey type: " + cacheKey.getClass().getName()

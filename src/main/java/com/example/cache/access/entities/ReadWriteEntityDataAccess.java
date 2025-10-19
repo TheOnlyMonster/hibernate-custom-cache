@@ -405,7 +405,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
             throw new IllegalArgumentException("EntityPersister cannot be null");
         }
         
-        return new EntityCacheKey(id, persister.getEntityName(), tenantIdentifier);
+        return new EntityCacheKey(id, persister.getRootEntityName(), tenantIdentifier);
     }
 
     @Override
