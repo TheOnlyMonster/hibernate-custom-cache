@@ -28,9 +28,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         this.domainDataRegion = domainDataRegion;
     }
 
-    /**
-     * Convert Object key to CacheKey. Hibernate may pass either raw keys or CacheKey objects.
-     */
+
     private CacheKey toCacheKey(Object key) {
         if (key instanceof CacheKey) {
             return (CacheKey) key;

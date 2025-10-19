@@ -10,28 +10,20 @@ public class EntityRegionImpl {
 
     public EntityRegionImpl(String regionName, int maxEntries, long ttlMillis, MetricsCollector metrics) {
         this.regionName = regionName;
-        this.cache = new InMemoryLRUCache<>(maxEntries, ttlMillis);
         this.metrics = metrics;
+        this.cache = new InMemoryLRUCache<>(maxEntries, ttlMillis, metrics);
     }
 
     public Object get(CacheKey key) {
-        Object value = cache.get(key);
-        if (value == null) {
-            metrics.miss();
-        } else {
-            metrics.hit();
-        }
-        return value;
+        return cache.get(key);
     }
 
     public void put(CacheKey key, Object value) {
         cache.put(key, value);
-        metrics.put();
     }
 
     public void evict(CacheKey key) {
         cache.remove(key);
-        metrics.evict();
     }
 
     public void evictAll() {
