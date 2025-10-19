@@ -1,4 +1,4 @@
-package com.example.cache.access;
+package com.example.cache.access.entities;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -12,9 +12,11 @@ import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.SharedSessionContractImplementor;
 import org.hibernate.persister.entity.EntityPersister;
 
-import com.example.cache.region.CacheKey;
+import com.example.cache.access.ReadWriteSoftLock;
 import com.example.cache.region.DomainDataRegionAdapter;
 import com.example.cache.region.EntityRegionImpl;
+import com.example.cache.utils.CacheKey;
+import com.example.cache.utils.CustomUtils;
 
 
 public class ReadWriteEntityDataAccess implements EntityDataAccess {
@@ -22,14 +24,14 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
     private final EntityRegionImpl entityRegion;
     private final DomainDataRegionAdapter domainDataRegion;
     
-    private final ConcurrentHashMap<CacheKey, ReadWriteSoftLock> lockMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<EntityCacheKey, ReadWriteSoftLock> lockMap = new ConcurrentHashMap<>();
     
     private volatile ReadWriteSoftLock regionLock;
     
     private static final long LOCK_TIMEOUT_MS = 60000; // 1 minute
 
     public ReadWriteEntityDataAccess(EntityRegionImpl entityRegion, 
-                                   DomainDataRegionAdapter domainDataRegion) {
+                                    DomainDataRegionAdapter domainDataRegion) {
         if (entityRegion == null) {
             throw new IllegalArgumentException("entityRegion cannot be null");
         }
@@ -41,20 +43,8 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
     }
 
 
-    private CacheKey toCacheKey(Object key) {
-        if (key == null) {
-            throw new IllegalArgumentException("Cache key cannot be null");
-        }
-        if (key instanceof CacheKey) {
-            return (CacheKey) key;
-        }
-        throw new IllegalArgumentException(
-            "Expected CacheKey but got: " + key.getClass().getName()
-        );
-    }
 
- 
-    private boolean isLocked(CacheKey cacheKey) {
+    private boolean isLocked(EntityCacheKey cacheKey) {
         if (regionLock != null) {
             if (isLockExpired(regionLock)) {
                 regionLock = null; 
@@ -92,7 +82,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
     @Override
     public boolean contains(Object key) {
         try {
-            CacheKey cacheKey = toCacheKey(key);
+            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
             
             if (isLocked(cacheKey)) {
                 return false;
@@ -116,7 +106,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
     @Override
     public Object get(SharedSessionContractImplementor session, Object key) {
         try {
-            CacheKey cacheKey = toCacheKey(key);
+            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
             
             if (isLocked(cacheKey)) {
                 return null;
@@ -168,7 +158,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         }
 
         try {
-            CacheKey cacheKey = toCacheKey(key);
+            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
             
             if (isLocked(cacheKey)) {
                 return false;
@@ -203,7 +193,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
     @Override
     public SoftLock lockItem(SharedSessionContractImplementor session, Object key, Object version) {
         try {
-            CacheKey cacheKey = toCacheKey(key);
+            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
             
             if (regionLock != null && !isLockExpired(regionLock)) {
                 return null;
@@ -261,7 +251,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         
         try {
             ReadWriteSoftLock rwLock = (ReadWriteSoftLock) lock;
-            CacheKey cacheKey = rwLock.getKey();
+            EntityCacheKey cacheKey = CustomUtils.toCacheKey(rwLock.getKey(), EntityCacheKey.class);
             
             lockMap.remove(cacheKey, rwLock);
 
@@ -340,7 +330,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         }
 
         try {
-            CacheKey cacheKey = toCacheKey(key);
+            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
             
             if (regionLock != null && !isLockExpired(regionLock)) {
                 return false;
@@ -408,17 +398,17 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
      */
     @Override
     public boolean afterUpdate(SharedSessionContractImplementor session,
-                             Object key,
-                             Object value,
-                             Object currentVersion,
-                             Object previousVersion,
-                             SoftLock lock) {
+                                Object key,
+                                Object value,
+                                Object currentVersion,
+                                Object previousVersion,
+                                SoftLock lock) {
         if (value == null) {
             return false;
         }
 
         try {
-            CacheKey cacheKey = toCacheKey(key);
+            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
             
             if (regionLock != null && !isLockExpired(regionLock)) {
                 return false;
@@ -449,7 +439,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
     @Override
     public void evict(Object key) {
         try {
-            CacheKey cacheKey = toCacheKey(key);
+            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
             lockMap.remove(cacheKey); 
             entityRegion.evict(cacheKey);
         } catch (Exception e) {
@@ -484,9 +474,9 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
             if (regionLock != null && !isLockExpired(regionLock)) {
                 return;
             }
-            
-            CacheKey cacheKey = toCacheKey(key);
-            
+
+            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
+
             SoftLock lock = lockItem(session, key, null);
             
             if (lock != null) {
@@ -538,9 +528,9 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
 
     @Override
     public Object generateCacheKey(Object id,
-                                 EntityPersister persister,
-                                 SessionFactoryImplementor factory,
-                                 String tenantIdentifier) {
+                                    EntityPersister persister,
+                                    SessionFactoryImplementor factory,
+                                    String tenantIdentifier) {
         if (id == null) {
             throw new IllegalArgumentException("Entity id cannot be null");
         }
@@ -548,7 +538,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
             throw new IllegalArgumentException("EntityPersister cannot be null");
         }
         
-        return new CacheKey(id, persister.getRootEntityName(), tenantIdentifier);
+        return new EntityCacheKey(id, persister.getEntityName(), tenantIdentifier);
     }
 
     @Override
@@ -556,8 +546,8 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         if (cacheKey == null) {
             throw new IllegalArgumentException("Cache key cannot be null");
         }
-        if (cacheKey instanceof CacheKey) {
-            return ((CacheKey) cacheKey).getId();
+        if (cacheKey instanceof EntityCacheKey) {
+            return ((EntityCacheKey) cacheKey).getId();
         }
         throw new IllegalArgumentException(
             "Unexpected cacheKey type: " + cacheKey.getClass().getName()

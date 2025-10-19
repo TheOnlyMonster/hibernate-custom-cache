@@ -1,7 +1,8 @@
 package com.example.cache.access;
 
 import org.hibernate.cache.spi.access.SoftLock;
-import com.example.cache.region.CacheKey;
+
+import com.example.cache.utils.CacheKey;
 
 public class ReadWriteSoftLock implements SoftLock {
     private final CacheKey key;

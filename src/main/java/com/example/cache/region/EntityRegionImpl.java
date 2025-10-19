@@ -2,6 +2,7 @@ package com.example.cache.region;
 
 import com.example.cache.metrics.MetricsCollector;
 import com.example.cache.storage.InMemoryLRUCache;
+import com.example.cache.utils.CacheKey;
 
 public class EntityRegionImpl {
     private final String regionName;

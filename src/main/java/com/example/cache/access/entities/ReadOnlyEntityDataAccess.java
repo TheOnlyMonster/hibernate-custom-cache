@@ -1,4 +1,4 @@
-package com.example.cache.access;
+package com.example.cache.access.entities;
 
 import org.hibernate.cache.spi.DomainDataRegion;
 import org.hibernate.cache.spi.access.AccessType;
@@ -7,10 +7,9 @@ import org.hibernate.cache.spi.access.SoftLock;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.SharedSessionContractImplementor;
 import org.hibernate.persister.entity.EntityPersister;
-
-import com.example.cache.region.CacheKey;
 import com.example.cache.region.DomainDataRegionAdapter;
 import com.example.cache.region.EntityRegionImpl;
+import com.example.cache.utils.CustomUtils;
 
 
 public class ReadOnlyEntityDataAccess implements EntityDataAccess {
@@ -29,19 +28,6 @@ public class ReadOnlyEntityDataAccess implements EntityDataAccess {
     this.domainDataRegion = domainDataRegion;
   }
 
-
-  private CacheKey toCacheKey(Object key) {
-    if (key == null) {
-      throw new IllegalArgumentException("Cache key cannot be null");
-    }
-    if (key instanceof CacheKey) {
-      return (CacheKey) key;
-    }
-    throw new IllegalArgumentException(
-      "Expected CacheKey but got: " + key.getClass().getName()
-    );
-  }
-
   /**
    * Check if an item is in the cache.
    * 
@@ -51,7 +37,7 @@ public class ReadOnlyEntityDataAccess implements EntityDataAccess {
   @Override
   public boolean contains(Object key) {
     try {
-      CacheKey cacheKey = toCacheKey(key);
+      EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
       return entityRegion.get(cacheKey) != null;
     } catch (Exception e) {
       return false;
@@ -68,7 +54,7 @@ public class ReadOnlyEntityDataAccess implements EntityDataAccess {
   @Override
   public Object get(SharedSessionContractImplementor session, Object key) {
     try {
-      CacheKey cacheKey = toCacheKey(key);
+      EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
       return entityRegion.get(cacheKey);
     } catch (Exception e) {
       return null;
@@ -113,7 +99,7 @@ public class ReadOnlyEntityDataAccess implements EntityDataAccess {
     }
 
     try {
-      CacheKey cacheKey = toCacheKey(key);
+      EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
       
       if (minimalPutOverride && entityRegion.get(cacheKey) != null) {
         return false;
@@ -135,7 +121,7 @@ public class ReadOnlyEntityDataAccess implements EntityDataAccess {
   @Override
   public void evict(Object key) {
     try {
-      CacheKey cacheKey = toCacheKey(key);
+      EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
       entityRegion.evict(cacheKey);
     } catch (Exception e) {
       // Log error in production  
@@ -333,8 +319,8 @@ public class ReadOnlyEntityDataAccess implements EntityDataAccess {
     if (persister == null) {
       throw new IllegalArgumentException("EntityPersister cannot be null");
     }
-    
-    return new CacheKey(id, persister.getRootEntityName(), tenantIdentifier);
+
+    return new EntityCacheKey(id, persister.getRootEntityName(), tenantIdentifier);
   }
 
   /**
@@ -349,8 +335,8 @@ public class ReadOnlyEntityDataAccess implements EntityDataAccess {
     if (cacheKey == null) {
       throw new IllegalArgumentException("Cache key cannot be null");
     }
-    if (cacheKey instanceof CacheKey) {
-      return ((CacheKey) cacheKey).getId();
+    if (cacheKey instanceof EntityCacheKey) {
+      return ((EntityCacheKey) cacheKey).getId();
     }
     throw new IllegalArgumentException(
       "Unexpected cacheKey type: " + cacheKey.getClass().getName()
