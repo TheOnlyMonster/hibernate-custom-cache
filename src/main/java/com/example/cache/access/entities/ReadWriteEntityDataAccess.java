@@ -1,7 +1,6 @@
 package com.example.cache.access.entities;
 
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 
 import org.hibernate.cache.CacheException;
 import org.hibernate.cache.spi.DomainDataRegion;
@@ -15,7 +14,6 @@ import org.hibernate.persister.entity.EntityPersister;
 import com.example.cache.access.ReadWriteSoftLock;
 import com.example.cache.region.DomainDataRegionAdapter;
 import com.example.cache.region.EntityRegionImpl;
-import com.example.cache.utils.CacheKey;
 import com.example.cache.utils.CustomUtils;
 
 
@@ -70,15 +68,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         return System.currentTimeMillis() - lock.getTimestamp() > LOCK_TIMEOUT_MS;
     }
 
-    // ========== READ OPERATIONS ==========
 
-    /**
-     * Check if an item exists in the cache.
-     * Returns false if the item is locked (being updated).
-     * 
-     * @param key The cache key
-     * @return true if item exists and is not locked, false otherwise
-     */
     @Override
     public boolean contains(Object key) {
         try {
@@ -95,14 +85,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         }
     }
 
-    /**
-     * Retrieve an item from cache.
-     * Returns null if the item is locked (prevents dirty reads).
-     * 
-     * @param session The originating session
-     * @param key The cache key
-     * @return The cached value, or null if not cached or locked
-     */
+
     @Override
     public Object get(SharedSessionContractImplementor session, Object key) {
         try {
@@ -119,16 +102,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         }
     }
 
-    /**
-     * Cache an object loaded from the database.
-     * Only caches if the key is not currently locked.
-     * 
-     * @param session The originating session
-     * @param key The cache key
-     * @param value The value to cache
-     * @param version The entity version
-     * @return true if successfully cached, false otherwise
-     */
+
     @Override
     public boolean putFromLoad(SharedSessionContractImplementor session,
                                 Object key,
@@ -137,22 +111,13 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         return putFromLoad(session, key, value, version, false);
     }
 
-    /**
-     * Cache an object with minimal put optimization.
-     * 
-     * @param session The originating session
-     * @param key The cache key
-     * @param value The value to cache
-     * @param version The entity version
-     * @param minimalPutOverride If true, skip if already cached
-     * @return true if successfully cached, false otherwise
-     */
+
     @Override
     public boolean putFromLoad(SharedSessionContractImplementor session,
-                             Object key,
-                             Object value,
-                             Object version,
-                             boolean minimalPutOverride) {
+                                Object key,
+                                Object value,
+                                Object version,
+                                boolean minimalPutOverride) {
         if (value == null) {
             return false;
         }
@@ -176,20 +141,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         }
     }
 
-    // ========== LOCKING OPERATIONS ==========
 
-    /**
-     * Acquire a lock on a cache key before modifying it.
-     * This prevents other transactions from reading stale data.
-     * 
-     * Called before update/delete operations.
-     * 
-     * @param session The originating session
-     * @param key The cache key to lock
-     * @param version The current entity version
-     * @return A SoftLock if successful, null if region is locked
-     * @throws CacheException if the key is already locked
-     */
     @Override
     public SoftLock lockItem(SharedSessionContractImplementor session, Object key, Object version) {
         try {
@@ -233,16 +185,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         }
     }
 
-    /**
-     * Release a lock on a cache key.
-     * This does NOT restore the old value - that would undo the update!
-     * 
-     * Called when a transaction rolls back.
-     * 
-     * @param session The originating session
-     * @param key The cache key to unlock
-     * @param lock The lock to release
-     */
+
     @Override
     public void unlockItem(SharedSessionContractImplementor session, Object key, SoftLock lock) {
         if (!(lock instanceof ReadWriteSoftLock)) {
@@ -261,13 +204,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         }
     }
 
-    /**
-     * Lock the entire region.
-     * Used during bulk operations like removeAll().
-     * 
-     * @return A region-wide SoftLock
-     * @throws CacheException if region is already locked
-     */
+
     @Override
     public SoftLock lockRegion() {
         ReadWriteSoftLock newLock = new ReadWriteSoftLock(null, null, null);
@@ -280,12 +217,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         return newLock;
     }
 
-    /**
-     * Unlock the entire region.
-     * Clears all individual key locks as well.
-     * 
-     * @param lock The region lock to release
-     */
+
     @Override
     public void unlockRegion(SoftLock lock) {
         if (lock instanceof ReadWriteSoftLock && lock == regionLock) {
@@ -294,14 +226,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         }
     }
 
-    // ========== WRITE OPERATIONS - INSERT ==========
 
-    /**
-     * Called before inserting a new entity.
-     * For READ_WRITE, we don't cache here - wait for afterInsert.
-     * 
-     * @return false (wait for successful insert)
-     */
     @Override
     public boolean insert(SharedSessionContractImplementor session,
                         Object key,
@@ -310,21 +235,12 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         return false;
     }
 
-    /**
-     * Called after successfully inserting an entity.
-     * Now we can safely cache the new entity.
-     * 
-     * @param session The originating session
-     * @param key The cache key
-     * @param value The entity value
-     * @param version The entity version
-     * @return true if cached, false if region locked
-     */
+
     @Override
     public boolean afterInsert(SharedSessionContractImplementor session,
-                             Object key,
-                             Object value,
-                             Object version) {
+                                Object key,
+                                Object value,
+                                Object version) {
         if (value == null) {
             return false;
         }
@@ -345,21 +261,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         }
     }
 
-    // ========== WRITE OPERATIONS - UPDATE ==========
 
-    /**
-     * Called before updating an entity.
-     * Acquires a lock and evicts the old value from cache.
-     * 
-     * IMPORTANT: The actual cache update happens in afterUpdate()!
-     * 
-     * @param session The originating session
-     * @param key The cache key
-     * @param value The new value (not cached yet!)
-     * @param currentVersion The new version
-     * @param previousVersion The old version
-     * @return true if lock acquired, false if region locked
-     */
     @Override
     public boolean update(SharedSessionContractImplementor session,
                         Object key,
@@ -382,20 +284,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         }
     }
 
-    /**
-     * Called after successfully updating an entity.
-     * Caches the new value and releases the lock.
-     * 
-     * This is the critical method that completes the update cycle.
-     * 
-     * @param session The originating session
-     * @param key The cache key
-     * @param value The new value to cache
-     * @param currentVersion The new version
-     * @param previousVersion The old version
-     * @param lock The lock from update()
-     * @return true if new value cached, false if region locked
-     */
+
     @Override
     public boolean afterUpdate(SharedSessionContractImplementor session,
                                 Object key,
@@ -428,14 +317,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         }
     }
 
-    // ========== EVICTION OPERATIONS ==========
 
-    /**
-     * Evict a single item from cache.
-     * Removes any lock on the key.
-     * 
-     * @param key The cache key to evict
-     */
     @Override
     public void evict(Object key) {
         try {
@@ -447,10 +329,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         }
     }
 
-    /**
-     * Evict all items from cache.
-     * Clears all locks.
-     */
+
     @Override
     public void evictAll() {
         try {
@@ -461,13 +340,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         }
     }
 
-    /**
-     * Remove an item from cache (called during entity deletion).
-     * Locks the item, evicts it, then unlocks.
-     * 
-     * @param session The originating session
-     * @param key The cache key to remove
-     */
+
     @Override
     public void remove(SharedSessionContractImplementor session, Object key) {
         try {
@@ -491,12 +364,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         }
     }
 
-    /**
-     * Remove all items from cache (bulk delete operation).
-     * Locks entire region during operation.
-     * 
-     * @param session The originating session
-     */
+
     @Override
     public void removeAll(SharedSessionContractImplementor session) {
         SoftLock lock = null;
@@ -514,7 +382,6 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         }
     }
 
-    // ========== METADATA OPERATIONS ==========
 
     @Override
     public AccessType getAccessType() {

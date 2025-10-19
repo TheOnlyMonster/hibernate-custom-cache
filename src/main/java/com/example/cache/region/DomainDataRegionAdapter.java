@@ -9,6 +9,9 @@ import org.hibernate.cache.spi.access.EntityDataAccess;
 import org.hibernate.cache.spi.access.NaturalIdDataAccess;
 import org.hibernate.metamodel.model.domain.NavigableRole;
 
+import com.example.cache.access.collections.NoStrictReadWriteCollectionDataAccess;
+import com.example.cache.access.collections.ReadOnlyCollectionDataAccess;
+import com.example.cache.access.collections.ReadWriteCollectionDataAccess;
 import com.example.cache.access.entities.NoStrictReadWriteEntityDataAccess;
 import com.example.cache.access.entities.ReadOnlyEntityDataAccess;
 import com.example.cache.access.entities.ReadWriteEntityDataAccess;
@@ -76,21 +79,16 @@ public class DomainDataRegionAdapter implements DomainDataRegion {
     private CollectionDataAccess createCollectionDataAccess(AccessType accessType) {
         switch (accessType) {
             case READ_ONLY:
-                throw new UnsupportedOperationException(
-                    "READ_ONLY access type for collections not yet implemented"
-                );
+                return new ReadOnlyCollectionDataAccess(entityRegion, this);
                 
             case READ_WRITE:
-                throw new UnsupportedOperationException(
-                    "READ_WRITE access type for collections not yet implemented"
-                );
+                return new ReadWriteCollectionDataAccess(entityRegion, this);
                 
             case NONSTRICT_READ_WRITE:
-                throw new UnsupportedOperationException(
-                    "NONSTRICT_READ_WRITE access type for collections not yet implemented"
-                );
+                return new NoStrictReadWriteCollectionDataAccess(entityRegion, this);
                 
             case TRANSACTIONAL:
+                // TODO: Implement transactional access
                 throw new UnsupportedOperationException(
                     "TRANSACTIONAL access type requires JTA support - not implemented"
                 );

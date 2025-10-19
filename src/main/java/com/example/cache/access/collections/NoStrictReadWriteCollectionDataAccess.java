@@ -1,5 +1,6 @@
 package com.example.cache.access.collections;
 
+
 import org.hibernate.cache.spi.DomainDataRegion;
 import org.hibernate.cache.spi.access.AccessType;
 import org.hibernate.cache.spi.access.CollectionDataAccess;
@@ -8,103 +9,181 @@ import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.SharedSessionContractImplementor;
 import org.hibernate.persister.collection.CollectionPersister;
 
+import com.example.cache.region.DomainDataRegionAdapter;
+import com.example.cache.region.EntityRegionImpl;
+import com.example.cache.utils.CustomUtils;
+
 public class NoStrictReadWriteCollectionDataAccess implements CollectionDataAccess {
 
-  @Override
-  public boolean contains(Object arg0) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'contains'");
-  }
+    private final EntityRegionImpl entityRegion;
+    private final DomainDataRegionAdapter domainDataRegion;
 
-  @Override
-  public void evict(Object arg0) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'evict'");
-  }
 
-  @Override
-  public void evictAll() {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'evictAll'");
-  }
+    public NoStrictReadWriteCollectionDataAccess(EntityRegionImpl entityRegion, DomainDataRegionAdapter domainDataRegion) {
+        if (entityRegion == null) {
+            throw new IllegalArgumentException("entityRegion cannot be null");
+        }
+        if (domainDataRegion == null) {
+            throw new IllegalArgumentException("domainDataRegion cannot be null");
+        }
+        this.entityRegion = entityRegion;
+        this.domainDataRegion = domainDataRegion;
+    }
 
-  @Override
-  public Object get(SharedSessionContractImplementor arg0, Object arg1) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'get'");
-  }
+    @Override
+    public boolean contains(Object key) {
+        try {
+            CollectionCacheKey cacheKey = CustomUtils.toCacheKey(key, CollectionCacheKey.class);
 
-  @Override
-  public AccessType getAccessType() {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'getAccessType'");
-  }
+            return entityRegion.get(cacheKey) != null;
+        } catch (Exception e) {
+            // Log in production
+            return false;
+        }
+    }
 
-  @Override
-  public DomainDataRegion getRegion() {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'getRegion'");
-  }
+    @Override
+    public void evict(Object key) {
+        try {
+            CollectionCacheKey cacheKey = CustomUtils.toCacheKey(key, CollectionCacheKey.class);
+            entityRegion.evict(cacheKey);
+        } catch (Exception e) {
+            // Log in production
+        }
+    }
 
-  @Override
-  public SoftLock lockItem(SharedSessionContractImplementor arg0, Object arg1, Object arg2) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'lockItem'");
-  }
+    @Override
+    public void evictAll() {
+        try {
+            entityRegion.evictAll();
+        } catch (Exception e) {
+            // Log in production
+        }
+    }
 
-  @Override
-  public SoftLock lockRegion() {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'lockRegion'");
-  }
+    @Override
+    public Object get(SharedSessionContractImplementor session, Object key) {
+        try {
+            CollectionCacheKey cacheKey = CustomUtils.toCacheKey(key, CollectionCacheKey.class);
+            return entityRegion.get(cacheKey);
+        } catch (Exception e) {
+            // Log in production
+            return null;
+        }
+    }
 
-  @Override
-  public boolean putFromLoad(SharedSessionContractImplementor arg0, Object arg1, Object arg2, Object arg3) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'putFromLoad'");
-  }
+    @Override
+    public AccessType getAccessType() {
+        return AccessType.NONSTRICT_READ_WRITE;
+    }
 
-  @Override
-  public boolean putFromLoad(SharedSessionContractImplementor arg0, Object arg1, Object arg2, Object arg3,
-      boolean arg4) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'putFromLoad'");
-  }
+    @Override
+    public DomainDataRegion getRegion() {
+        return domainDataRegion;
+    }
 
-  @Override
-  public void remove(SharedSessionContractImplementor arg0, Object arg1) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'remove'");
-  }
+    @Override
+    public SoftLock lockItem(SharedSessionContractImplementor arg0, Object arg1, Object arg2) {
+        return null;
+    }
 
-  @Override
-  public void removeAll(SharedSessionContractImplementor arg0) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'removeAll'");
-  }
+    @Override
+    public SoftLock lockRegion() {
+        return null;
+    }
 
-  @Override
-  public void unlockItem(SharedSessionContractImplementor arg0, Object arg1, SoftLock arg2) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'unlockItem'");
-  }
+    @Override
+    public boolean putFromLoad(SharedSessionContractImplementor session,
+                                    Object key,
+                                    Object value,
+        Object version) {
+        return putFromLoad(session, key, value, version, false);
+    }
+    
+    @Override
+    public boolean putFromLoad(SharedSessionContractImplementor session,
+                                Object key,
+                                Object value,
+                                Object version,
+                                boolean minimalPutOverride) {
+        if (value == null) {
+            return false;
+        }
 
-  @Override
-  public void unlockRegion(SoftLock arg0) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'unlockRegion'");
-  }
+        try {
+            CollectionCacheKey cacheKey = CustomUtils.toCacheKey(key, CollectionCacheKey.class);
+            
 
-  @Override
-  public Object generateCacheKey(Object arg0, CollectionPersister arg1, SessionFactoryImplementor arg2, String arg3) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'generateCacheKey'");
-  }
+            if (minimalPutOverride && entityRegion.get(cacheKey) != null) {
+                return false;
+            }
 
-  @Override
-  public Object getCacheKeyId(Object arg0) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'getCacheKeyId'");
-  }
-  
+            entityRegion.put(cacheKey, value);
+            return true;
+        } catch (Exception e) {
+            // Log in production
+            return false;
+        }
+    }
+
+    @Override
+    public void remove(SharedSessionContractImplementor session, Object key) {
+        try {
+            CollectionCacheKey cacheKey = CustomUtils.toCacheKey(key, CollectionCacheKey.class);
+            entityRegion.evict(cacheKey);
+        } catch (Exception e) {
+            // Log in production
+        }
+    }
+
+    @Override
+    public void removeAll(SharedSessionContractImplementor session) {
+        try {
+            entityRegion.evictAll();
+            
+        } catch (Exception e) {
+            // Log in production
+        } 
+    }
+
+    @Override
+    public void unlockItem(SharedSessionContractImplementor arg0, Object arg1, SoftLock arg2) {
+        // No-op
+    }
+
+    @Override
+    public void unlockRegion(SoftLock arg0) {
+        // No-op
+    }
+
+    @Override
+    public Object generateCacheKey(Object id,
+                                    CollectionPersister persister,
+                                    SessionFactoryImplementor factory,
+                                    String tenantIdentifier) {
+        if (id == null) {
+            throw new IllegalArgumentException("Entity id cannot be null");
+        }
+        if (persister == null) {
+            throw new IllegalArgumentException("EntityPersister cannot be null");
+        }
+
+        return new CollectionCacheKey(id, tenantIdentifier, tenantIdentifier);
+    }
+
+    @Override
+    public Object getCacheKeyId(Object cacheKey) {
+        if (cacheKey == null) {
+            throw new IllegalArgumentException("Cache key cannot be null");
+        }
+        if (cacheKey instanceof CollectionCacheKey) {
+            return ((CollectionCacheKey) cacheKey).getOwnerId();
+        }
+        throw new IllegalArgumentException(
+            "Unexpected cacheKey type: " + cacheKey.getClass().getName()
+        );
+    }
+
+
+
 }
