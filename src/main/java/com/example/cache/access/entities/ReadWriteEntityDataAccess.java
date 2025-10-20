@@ -153,10 +153,6 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
             
             Object currentValue = entityRegion.get(cacheKey);
 
-            if (currentValue == null) {
-                throw new CacheException("Item not found in cache: " + key);
-            }
-
             ReadWriteSoftLock newLock = new ReadWriteSoftLock(cacheKey, currentValue, version);
             
             ReadWriteSoftLock existingLock = lockMap.putIfAbsent(cacheKey, newLock);
@@ -198,6 +194,8 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
             
             lockMap.remove(cacheKey, rwLock);
 
+            entityRegion.put(cacheKey, rwLock.getOldValue());
+
             
         } catch (Exception e) {
             // Log in production - don't throw, unlocking should be best-effort
@@ -222,7 +220,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
     public void unlockRegion(SoftLock lock) {
         if (lock instanceof ReadWriteSoftLock && lock == regionLock) {
             regionLock = null;
-            lockMap.clear(); // Clear all individual locks too
+            lockMap.clear(); 
         }
     }
 
@@ -350,14 +348,11 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
 
             EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
 
-            SoftLock lock = lockItem(session, key, null);
+            SoftLock lock = lockItem(session, cacheKey, null);
             
             if (lock != null) {
-                try {
-                    entityRegion.evict(cacheKey);
-                } finally {
-                    unlockItem(session, key, lock);
-                }
+                lockMap.remove(cacheKey, lock);
+                entityRegion.evict(cacheKey);
             }
         } catch (Exception e) {
             // Log in production
