@@ -1,3 +1,5 @@
-com\example\cache\storage\InMemoryLRUCacheTest.class
+com\example\cache\access\entities\NoStrictReadWriteEntityDataAccessTest.class
 com\example\cache\access\collections\ReadOnlyCollectionDataAccessTest.class
 com\example\cache\access\entities\ReadWriteEntityDataAccessTest.class
+com\example\cache\access\entities\ReadOnlyEntityDataAccessTest.class
+com\example\cache\storage\InMemoryLRUCacheTest.class
