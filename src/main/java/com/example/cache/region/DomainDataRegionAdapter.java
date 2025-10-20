@@ -15,6 +15,9 @@ import com.example.cache.access.collections.ReadWriteCollectionDataAccess;
 import com.example.cache.access.entities.NoStrictReadWriteEntityDataAccess;
 import com.example.cache.access.entities.ReadOnlyEntityDataAccess;
 import com.example.cache.access.entities.ReadWriteEntityDataAccess;
+import com.example.cache.access.naturalid.NoStrictNaturalIdDataAccess;
+import com.example.cache.access.naturalid.ReadOnlyNaturalIdDataAccess;
+import com.example.cache.access.naturalid.ReadWriteNaturalIdDataAccess;
 import com.example.cache.factory.CustomRegionFactory;
 
 import java.util.Map;
@@ -123,19 +126,13 @@ public class DomainDataRegionAdapter implements DomainDataRegion {
     private NaturalIdDataAccess createNaturalIdDataAccess(AccessType accessType) {
         switch (accessType) {
             case READ_ONLY:
-                throw new UnsupportedOperationException(
-                    "READ_ONLY access type for NaturalId not yet implemented"
-                );
+                return new ReadOnlyNaturalIdDataAccess(entityRegion, this);
                 
             case READ_WRITE:
-                throw new UnsupportedOperationException(
-                    "READ_WRITE access type for NaturalId not yet implemented"
-                );
-                
+                return new ReadWriteNaturalIdDataAccess(entityRegion, this);
+
             case NONSTRICT_READ_WRITE:
-                throw new UnsupportedOperationException(
-                    "NONSTRICT_READ_WRITE access type for NaturalId not yet implemented"
-                );
+                return new NoStrictNaturalIdDataAccess(entityRegion, this);
                 
             case TRANSACTIONAL:
                 throw new UnsupportedOperationException(
