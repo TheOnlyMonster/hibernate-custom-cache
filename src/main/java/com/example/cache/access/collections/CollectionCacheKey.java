@@ -5,7 +5,7 @@ import java.util.Objects;
 
 import com.example.cache.utils.CacheKey;
 
-public class CollectionCacheKey implements Serializable, CacheKey {
+public final class CollectionCacheKey implements Serializable, CacheKey {
     private static final long serialVersionUID = 1L;
     
     private final Object ownerId;        

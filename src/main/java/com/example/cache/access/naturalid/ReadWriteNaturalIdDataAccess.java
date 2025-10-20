@@ -1,35 +1,32 @@
-package com.example.cache.access.entities;
+package com.example.cache.access.naturalid;
 
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.hibernate.cache.CacheException;
 import org.hibernate.cache.spi.DomainDataRegion;
 import org.hibernate.cache.spi.access.AccessType;
-import org.hibernate.cache.spi.access.EntityDataAccess;
+import org.hibernate.cache.spi.access.NaturalIdDataAccess;
 import org.hibernate.cache.spi.access.SoftLock;
-import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.SharedSessionContractImplementor;
 import org.hibernate.persister.entity.EntityPersister;
-
 import com.example.cache.access.ReadWriteSoftLock;
 import com.example.cache.region.DomainDataRegionAdapter;
 import com.example.cache.region.EntityRegionImpl;
 import com.example.cache.utils.CustomUtils;
 
-
-public class ReadWriteEntityDataAccess implements EntityDataAccess {
+public class ReadWriteNaturalIdDataAccess implements NaturalIdDataAccess {
 
     private final EntityRegionImpl entityRegion;
     
     private final DomainDataRegionAdapter domainDataRegion;
     
-    private final ConcurrentHashMap<EntityCacheKey, ReadWriteSoftLock> lockMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<NaturalIdCacheKey, ReadWriteSoftLock> lockMap = new ConcurrentHashMap<>();
     
     private volatile ReadWriteSoftLock regionLock;
     
-    private static final long LOCK_TIMEOUT_MS = 60000; // 1 minute
+    private static final long LOCK_TIMEOUT_MS = 60000; 
 
-    public ReadWriteEntityDataAccess(EntityRegionImpl entityRegion, 
+    public ReadWriteNaturalIdDataAccess(EntityRegionImpl entityRegion, 
                                     DomainDataRegionAdapter domainDataRegion) {
         if (entityRegion == null) {
             throw new IllegalArgumentException("entityRegion cannot be null");
@@ -43,7 +40,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
 
 
 
-    private boolean isLocked(EntityCacheKey cacheKey) {
+    private boolean isLocked(NaturalIdCacheKey cacheKey) {
         if (regionLock != null) {
             if (isLockExpired(regionLock)) {
                 regionLock = null; 
@@ -73,7 +70,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
     @Override
     public boolean contains(Object key) {
         try {
-            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
+            NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
             
             if (isLocked(cacheKey)) {
                 return false;
@@ -90,7 +87,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
     @Override
     public Object get(SharedSessionContractImplementor session, Object key) {
         try {
-            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
+            NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
             
             if (isLocked(cacheKey)) {
                 return null;
@@ -124,7 +121,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         }
 
         try {
-            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
+            NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
             
             if (isLocked(cacheKey)) {
                 return false;
@@ -146,7 +143,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
     @Override
     public SoftLock lockItem(SharedSessionContractImplementor session, Object key, Object version) {
         try {
-            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
+            NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
             
             if (regionLock != null && !isLockExpired(regionLock)) {
                 return null;
@@ -191,7 +188,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         
         try {
             ReadWriteSoftLock rwLock = (ReadWriteSoftLock) lock;
-            EntityCacheKey cacheKey = CustomUtils.toCacheKey(rwLock.getKey(), EntityCacheKey.class);
+            NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
             
             lockMap.remove(cacheKey, rwLock);
 
@@ -226,101 +223,13 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
     }
 
 
-    @Override
-    public boolean insert(SharedSessionContractImplementor session,
-                        Object key,
-                        Object value,
-                        Object version) {
-        return false;
-    }
-
-
-    @Override
-    public boolean afterInsert(SharedSessionContractImplementor session,
-                                Object key,
-                                Object value,
-                                Object version) {
-        if (value == null) {
-            return false;
-        }
-
-        try {
-            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
-            
-            if (regionLock != null && !isLockExpired(regionLock)) {
-                return false;
-            }
-            
-            entityRegion.put(cacheKey, value);
-            return true;
-            
-        } catch (Exception e) {
-            // Log in production
-            return false;
-        }
-    }
-
-
-    @Override
-    public boolean update(SharedSessionContractImplementor session,
-                        Object key,
-                        Object value,
-                        Object currentVersion,
-                        Object previousVersion) {
-        try {
-            if (regionLock != null && !isLockExpired(regionLock)) {
-                return false;
-            }
-            
-            SoftLock lock = lockItem(session, key, previousVersion);
-            
-
-            return lock != null;
-            
-        } catch (Exception e) {
-            // Log in production
-            return false;
-        }
-    }
-
-
-    @Override
-    public boolean afterUpdate(SharedSessionContractImplementor session,
-                                Object key,
-                                Object value,
-                                Object currentVersion,
-                                Object previousVersion,
-                                SoftLock lock) {
-        if (value == null) {
-            return false;
-        }
-
-        try {
-            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
-            
-            if (regionLock != null && !isLockExpired(regionLock)) {
-                return false;
-            }
-            
-            if (lock instanceof ReadWriteSoftLock) {
-                ReadWriteSoftLock rwLock = (ReadWriteSoftLock) lock;
-                lockMap.remove(rwLock.getKey(), rwLock);
-            }
-            
-            entityRegion.put(cacheKey, value);
-            return true;
-            
-        } catch (Exception e) {
-            // Log in production
-            return false;
-        }
-    }
+    
 
 
     @Override
     public void evict(Object key) {
         try {
-            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
+            NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
             lockMap.remove(cacheKey); 
             entityRegion.evict(cacheKey);
         } catch (Exception e) {
@@ -347,7 +256,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
                 return;
             }
 
-            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
+            NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
 
             SoftLock lock = lockItem(session, cacheKey, null);
             
@@ -390,30 +299,127 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
     }
 
     @Override
-    public Object generateCacheKey(Object id,
-                                    EntityPersister persister,
-                                    SessionFactoryImplementor factory,
-                                    String tenantIdentifier) {
-        if (id == null) {
-            throw new IllegalArgumentException("Entity id cannot be null");
+    public Object generateCacheKey(
+        Object naturalIdValues,
+        EntityPersister persister,
+        SharedSessionContractImplementor session) {
+        
+        if (naturalIdValues == null) {
+            throw new IllegalArgumentException("Natural ID values cannot be null");
         }
         if (persister == null) {
             throw new IllegalArgumentException("EntityPersister cannot be null");
         }
         
-        return new EntityCacheKey(id, persister.getRootEntityName(), tenantIdentifier);
-    }
-
-    @Override
-    public Object getCacheKeyId(Object cacheKey) {
-        if (cacheKey == null) {
-            throw new IllegalArgumentException("Cache key cannot be null");
+        Object[] valuesArray;
+        if (naturalIdValues instanceof Object[]) {
+            valuesArray = (Object[]) naturalIdValues;
+        } else {
+            valuesArray = new Object[] { naturalIdValues };
         }
-        if (cacheKey instanceof EntityCacheKey) {
-            return ((EntityCacheKey) cacheKey).getId();
-        }
-        throw new IllegalArgumentException(
-            "Unexpected cacheKey type: " + cacheKey.getClass().getName()
+        
+        return new NaturalIdCacheKey(
+            valuesArray,
+            persister.getRootEntityName(),
+            session.getTenantIdentifier()
         );
     }
+
+
+
+
+
+
+    @Override
+    public Object getNaturalIdValues(Object arg0) {
+        NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(arg0, NaturalIdCacheKey.class);
+        return cacheKey.getNaturalIdValues();
+    }
+
+
+
+    @Override
+    public boolean insert(SharedSessionContractImplementor session,
+                        Object key,
+                        Object value) {
+        return false;
+    }
+
+
+    @Override
+    public boolean afterInsert(SharedSessionContractImplementor session,
+                                Object key,
+                                Object value) {
+        if (value == null) {
+            return false;
+        }
+
+        try {
+            NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
+            
+            if (regionLock != null && !isLockExpired(regionLock)) {
+                return false;
+            }
+            
+            entityRegion.put(cacheKey, value);
+            return true;
+            
+        } catch (Exception e) {
+            // Log in production
+            return false;
+        }
+    }
+
+
+    @Override
+    public boolean update(SharedSessionContractImplementor session,
+                        Object key,
+                        Object value) {
+        try {
+            if (regionLock != null && !isLockExpired(regionLock)) {
+                return false;
+            }
+            
+            SoftLock lock = lockItem(session, key, null);
+            
+
+            return lock != null;
+            
+        } catch (Exception e) {
+            // Log in production
+            return false;
+        }
+    }
+
+
+    @Override
+    public boolean afterUpdate(SharedSessionContractImplementor session,
+                                Object key,
+                                Object value,
+                                SoftLock lock) {
+        if (value == null) {
+            return false;
+        }
+
+        try {
+            NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
+            
+            if (regionLock != null && !isLockExpired(regionLock)) {
+                return false;
+            }
+            
+            if (lock instanceof ReadWriteSoftLock) {
+                ReadWriteSoftLock rwLock = (ReadWriteSoftLock) lock;
+                lockMap.remove(rwLock.getKey(), rwLock);
+            }
+            
+            entityRegion.put(cacheKey, value);
+            return true;
+            
+        } catch (Exception e) {
+            // Log in production
+            return false;
+        }
+    }
+
 }
