@@ -4,6 +4,9 @@ import com.example.cache.access.ReadWriteSoftLock;
 import com.example.cache.metrics.MetricsCollector;
 import com.example.cache.region.DomainDataRegionAdapter;
 import com.example.cache.region.EntityRegionImpl;
+
+import jakarta.persistence.EntityManager;
+
 import org.hibernate.cache.CacheException;
 import org.hibernate.cache.spi.access.AccessType;
 import org.hibernate.cache.spi.access.SoftLock;
@@ -19,7 +22,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-
+import org.hibernate.type.Type;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -30,8 +33,8 @@ class ReadWriteEntityDataAccessTest {
     private EntityRegionImpl entityRegion;
     private DomainDataRegionAdapter domainDataRegion;
     private SharedSessionContractImplementor session;
-    private EntityPersister persister;
     private SessionFactoryImplementor factory;
+    private EntityPersister persister;
 
     @BeforeEach
     void setUp() {
@@ -39,12 +42,10 @@ class ReadWriteEntityDataAccessTest {
         entityRegion = new EntityRegionImpl("test-region", 100, 60000, metrics);
         domainDataRegion = mock(DomainDataRegionAdapter.class);
         dataAccess = new ReadWriteEntityDataAccess(entityRegion, domainDataRegion);
-        
+        factory = null;
         session = null;
         persister = mock(EntityPersister.class);
-        factory = null;
-        
-        when(persister.getEntityName()).thenReturn("com.example.Entity");
+        when(persister.getRootEntityName()).thenReturn("com.example.Entity");
     }
 
     @Test
