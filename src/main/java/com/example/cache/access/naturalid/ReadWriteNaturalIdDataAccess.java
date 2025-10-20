@@ -1,6 +1,7 @@
 package com.example.cache.access.naturalid;
 
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.hibernate.cache.CacheException;
 import org.hibernate.cache.spi.DomainDataRegion;
@@ -22,7 +23,7 @@ public class ReadWriteNaturalIdDataAccess implements NaturalIdDataAccess {
     
     private final ConcurrentHashMap<NaturalIdCacheKey, ReadWriteSoftLock> lockMap = new ConcurrentHashMap<>();
     
-    private volatile ReadWriteSoftLock regionLock;
+    private final AtomicReference<ReadWriteSoftLock> regionLock = new AtomicReference<>();
     
     private static final long LOCK_TIMEOUT_MS = 60000; 
 
@@ -38,21 +39,28 @@ public class ReadWriteNaturalIdDataAccess implements NaturalIdDataAccess {
         this.domainDataRegion = domainDataRegion;
     }
 
-
-
-    private boolean isLocked(NaturalIdCacheKey cacheKey) {
-        if (regionLock != null) {
-            if (isLockExpired(regionLock)) {
-                regionLock = null; 
+    private boolean isRegionLocked() {
+        ReadWriteSoftLock currentRegionLock = regionLock.get();
+        if (currentRegionLock != null) {
+            if (isLockExpired(currentRegionLock)) {
+                regionLock.compareAndSet(currentRegionLock, null);
+                return regionLock.get() != null;
             } else {
                 return true;
             }
+        }
+        return false;
+    }
+
+    private boolean isLocked(NaturalIdCacheKey cacheKey) {
+        if (isRegionLocked()) {
+            return true;
         }
         
         ReadWriteSoftLock lock = lockMap.get(cacheKey);
         if (lock != null) {
             if (isLockExpired(lock)) {
-                lockMap.remove(cacheKey, lock); 
+                lockMap.remove(cacheKey, lock);
                 return false;
             }
             return true;
@@ -144,8 +152,8 @@ public class ReadWriteNaturalIdDataAccess implements NaturalIdDataAccess {
     public SoftLock lockItem(SharedSessionContractImplementor session, Object key, Object version) {
         try {
             NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
-            
-            if (regionLock != null && !isLockExpired(regionLock)) {
+
+            if (isRegionLocked()) {
                 return null;
             }
             
@@ -201,24 +209,25 @@ public class ReadWriteNaturalIdDataAccess implements NaturalIdDataAccess {
     }
 
 
-    @Override
     public SoftLock lockRegion() {
         ReadWriteSoftLock newLock = new ReadWriteSoftLock(null, null, null);
+        ReadWriteSoftLock existing = regionLock.get();
         
-        if (regionLock != null && !isLockExpired(regionLock)) {
+        if (existing != null && !isLockExpired(existing)) {
             throw new CacheException("Region already locked");
         }
         
-        regionLock = newLock;
+        if (!regionLock.compareAndSet(existing, newLock)) {
+            throw new CacheException("Region already locked by another thread");
+        }
+        
         return newLock;
     }
 
-
-    @Override
     public void unlockRegion(SoftLock lock) {
-        if (lock instanceof ReadWriteSoftLock && lock == regionLock) {
-            regionLock = null;
-            lockMap.clear(); 
+        if (lock instanceof ReadWriteSoftLock) {
+            regionLock.compareAndSet((ReadWriteSoftLock) lock, null);
+            lockMap.clear();
         }
     }
 
@@ -252,7 +261,7 @@ public class ReadWriteNaturalIdDataAccess implements NaturalIdDataAccess {
     @Override
     public void remove(SharedSessionContractImplementor session, Object key) {
         try {
-            if (regionLock != null && !isLockExpired(regionLock)) {
+            if (isRegionLocked()) {
                 return;
             }
 
@@ -357,7 +366,7 @@ public class ReadWriteNaturalIdDataAccess implements NaturalIdDataAccess {
         try {
             NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
             
-            if (regionLock != null && !isLockExpired(regionLock)) {
+            if (isRegionLocked()) {
                 return false;
             }
             
@@ -376,7 +385,7 @@ public class ReadWriteNaturalIdDataAccess implements NaturalIdDataAccess {
                         Object key,
                         Object value) {
         try {
-            if (regionLock != null && !isLockExpired(regionLock)) {
+            if (isRegionLocked()) {
                 return false;
             }
             
@@ -403,8 +412,8 @@ public class ReadWriteNaturalIdDataAccess implements NaturalIdDataAccess {
 
         try {
             NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
-            
-            if (regionLock != null && !isLockExpired(regionLock)) {
+
+            if (isRegionLocked()) {
                 return false;
             }
             

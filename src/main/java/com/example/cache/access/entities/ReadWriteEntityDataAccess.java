@@ -1,6 +1,7 @@
 package com.example.cache.access.entities;
 
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.hibernate.cache.CacheException;
 import org.hibernate.cache.spi.DomainDataRegion;
@@ -25,7 +26,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
     
     private final ConcurrentHashMap<EntityCacheKey, ReadWriteSoftLock> lockMap = new ConcurrentHashMap<>();
     
-    private volatile ReadWriteSoftLock regionLock;
+    private final AtomicReference<ReadWriteSoftLock> regionLock = new AtomicReference<>();
     
     private static final long LOCK_TIMEOUT_MS = 60000; // 1 minute
 
@@ -41,21 +42,30 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         this.domainDataRegion = domainDataRegion;
     }
 
-
-
-    private boolean isLocked(EntityCacheKey cacheKey) {
-        if (regionLock != null) {
-            if (isLockExpired(regionLock)) {
-                regionLock = null; 
+    
+    
+    private boolean isRegionLocked() {
+        ReadWriteSoftLock currentRegionLock = regionLock.get();
+        if (currentRegionLock != null) {
+            if (isLockExpired(currentRegionLock)) {
+                regionLock.compareAndSet(currentRegionLock, null);
+                return regionLock.get() != null;
             } else {
                 return true;
             }
+        }
+        return false;
+    }
+
+    private boolean isLocked(EntityCacheKey cacheKey) {
+        if (isRegionLocked()) {
+            return true;
         }
         
         ReadWriteSoftLock lock = lockMap.get(cacheKey);
         if (lock != null) {
             if (isLockExpired(lock)) {
-                lockMap.remove(cacheKey, lock); 
+                lockMap.remove(cacheKey, lock);
                 return false;
             }
             return true;
@@ -148,7 +158,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         try {
             EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
             
-            if (regionLock != null && !isLockExpired(regionLock)) {
+            if (isRegionLocked()) {
                 return null;
             }
             
@@ -203,25 +213,26 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         }
     }
 
-
     @Override
     public SoftLock lockRegion() {
         ReadWriteSoftLock newLock = new ReadWriteSoftLock(null, null, null);
+        ReadWriteSoftLock existing = regionLock.get();
         
-        if (regionLock != null && !isLockExpired(regionLock)) {
+        if (existing != null && !isLockExpired(existing)) {
             throw new CacheException("Region already locked");
         }
         
-        regionLock = newLock;
+        if (!regionLock.compareAndSet(existing, newLock)) {
+            throw new CacheException("Region already locked by another thread");
+        }
+        
         return newLock;
     }
-
-
     @Override
     public void unlockRegion(SoftLock lock) {
-        if (lock instanceof ReadWriteSoftLock && lock == regionLock) {
-            regionLock = null;
-            lockMap.clear(); 
+        if (lock instanceof ReadWriteSoftLock) {
+            regionLock.compareAndSet((ReadWriteSoftLock) lock, null);
+            lockMap.clear();
         }
     }
 
@@ -247,7 +258,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         try {
             EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
             
-            if (regionLock != null && !isLockExpired(regionLock)) {
+            if (isRegionLocked()) {
                 return false;
             }
             
@@ -268,7 +279,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
                         Object currentVersion,
                         Object previousVersion) {
         try {
-            if (regionLock != null && !isLockExpired(regionLock)) {
+            if (isRegionLocked()) {
                 return false;
             }
             
@@ -298,7 +309,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         try {
             EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
             
-            if (regionLock != null && !isLockExpired(regionLock)) {
+            if (isRegionLocked()) {
                 return false;
             }
             
@@ -343,7 +354,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
     @Override
     public void remove(SharedSessionContractImplementor session, Object key) {
         try {
-            if (regionLock != null && !isLockExpired(regionLock)) {
+            if (isRegionLocked()) {
                 return;
             }
 

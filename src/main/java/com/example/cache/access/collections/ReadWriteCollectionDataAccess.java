@@ -1,6 +1,7 @@
 package com.example.cache.access.collections;
 
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.hibernate.cache.CacheException;
 import org.hibernate.cache.spi.DomainDataRegion;
@@ -22,7 +23,7 @@ public class ReadWriteCollectionDataAccess implements CollectionDataAccess {
     
     private final ConcurrentHashMap<CollectionCacheKey, ReadWriteSoftLock> lockMap = new ConcurrentHashMap<>();
     
-    private volatile ReadWriteSoftLock regionLock;
+    private volatile AtomicReference<ReadWriteSoftLock> regionLock = new AtomicReference<>(null);
     
     private static final long LOCK_TIMEOUT_MS = 60000; // 1 minute
 
@@ -40,19 +41,28 @@ public class ReadWriteCollectionDataAccess implements CollectionDataAccess {
 
 
 
-    private boolean isLocked(CollectionCacheKey cacheKey) {
-        if (regionLock != null) {
-            if (isLockExpired(regionLock)) {
-                regionLock = null; 
+    private boolean isRegionLocked() {
+        ReadWriteSoftLock currentRegionLock = regionLock.get();
+        if (currentRegionLock != null) {
+            if (isLockExpired(currentRegionLock)) {
+                regionLock.compareAndSet(currentRegionLock, null);
+                return regionLock.get() != null;
             } else {
                 return true;
             }
+        }
+        return false;
+    }
+
+    private boolean isLocked(CollectionCacheKey cacheKey) {
+        if (isRegionLocked()) {
+            return true;
         }
         
         ReadWriteSoftLock lock = lockMap.get(cacheKey);
         if (lock != null) {
             if (isLockExpired(lock)) {
-                lockMap.remove(cacheKey, lock); 
+                lockMap.remove(cacheKey, lock);
                 return false;
             }
             return true;
@@ -145,15 +155,11 @@ public class ReadWriteCollectionDataAccess implements CollectionDataAccess {
         try {
             CollectionCacheKey cacheKey = CustomUtils.toCacheKey(key, CollectionCacheKey.class);
             
-            if (regionLock != null && !isLockExpired(regionLock)) {
+            if (isRegionLocked()) {
                 return null;
             }
             
             Object currentValue = entityRegion.get(cacheKey);
-
-            if (currentValue == null) {
-                throw new CacheException("Item not found in cache: " + key);
-            }
 
             ReadWriteSoftLock newLock = new ReadWriteSoftLock(cacheKey, currentValue, version);
             
@@ -208,21 +214,23 @@ public class ReadWriteCollectionDataAccess implements CollectionDataAccess {
     @Override
     public SoftLock lockRegion() {
         ReadWriteSoftLock newLock = new ReadWriteSoftLock(null, null, null);
+        ReadWriteSoftLock existing = regionLock.get();
         
-        if (regionLock != null && !isLockExpired(regionLock)) {
+        if (existing != null && !isLockExpired(existing)) {
             throw new CacheException("Region already locked");
         }
         
-        regionLock = newLock;
+        if (!regionLock.compareAndSet(existing, newLock)) {
+            throw new CacheException("Region already locked by another thread");
+        }
+        
         return newLock;
     }
-
-
     @Override
     public void unlockRegion(SoftLock lock) {
-        if (lock instanceof ReadWriteSoftLock && lock == regionLock) {
-            regionLock = null;
-            lockMap.clear(); 
+        if (lock instanceof ReadWriteSoftLock) {
+            regionLock.compareAndSet((ReadWriteSoftLock) lock, null);
+            lockMap.clear();
         }
     }
 
@@ -253,7 +261,7 @@ public class ReadWriteCollectionDataAccess implements CollectionDataAccess {
     @Override
     public void remove(SharedSessionContractImplementor session, Object key) {
         try {
-            if (regionLock != null && !isLockExpired(regionLock)) {
+            if (isRegionLocked()) {
                 return;
             }
 
