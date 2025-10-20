@@ -1,2 +1,3 @@
-C:\Users\abdel\OneDrive\Desktop\My-Github-Projects\hibernate-custom-cache\src\test\java\com\example\cache\region\EntityRegionImplTest.java
+C:\Users\abdel\OneDrive\Desktop\My-Github-Projects\hibernate-custom-cache\src\test\java\com\example\cache\access\collections\ReadOnlyCollectionDataAccessTest.java
+C:\Users\abdel\OneDrive\Desktop\My-Github-Projects\hibernate-custom-cache\src\test\java\com\example\cache\access\entities\ReadWriteEntityDataAccessTest.java
 C:\Users\abdel\OneDrive\Desktop\My-Github-Projects\hibernate-custom-cache\src\test\java\com\example\cache\storage\InMemoryLRUCacheTest.java

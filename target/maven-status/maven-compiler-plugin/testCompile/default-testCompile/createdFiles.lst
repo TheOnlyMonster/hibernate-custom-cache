@@ -1,2 +1,3 @@
 com\example\cache\storage\InMemoryLRUCacheTest.class
-com\example\cache\region\EntityRegionImplTest.class
+com\example\cache\access\collections\ReadOnlyCollectionDataAccessTest.class
+com\example\cache\access\entities\ReadWriteEntityDataAccessTest.class
