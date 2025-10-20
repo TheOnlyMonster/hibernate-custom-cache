@@ -112,10 +112,10 @@ public class ReadWriteCollectionDataAccess implements CollectionDataAccess {
 
     @Override
     public boolean putFromLoad(SharedSessionContractImplementor session,
-                              Object key,
-                              Object value,
-                              Object version,
-                              boolean minimalPutOverride) {
+                                Object key,
+                                Object value,
+                                Object version,
+                                boolean minimalPutOverride) {
         if (value == null) {
             return false;
         }
@@ -196,11 +196,14 @@ public class ReadWriteCollectionDataAccess implements CollectionDataAccess {
             
             lockMap.remove(cacheKey, rwLock);
 
+            entityRegion.put(cacheKey, rwLock.getOldValue());
+
             
         } catch (Exception e) {
             // Log in production - don't throw, unlocking should be best-effort
         }
     }
+
 
     @Override
     public SoftLock lockRegion() {
@@ -219,7 +222,7 @@ public class ReadWriteCollectionDataAccess implements CollectionDataAccess {
     public void unlockRegion(SoftLock lock) {
         if (lock instanceof ReadWriteSoftLock && lock == regionLock) {
             regionLock = null;
-            lockMap.clear(); // Clear all individual locks too
+            lockMap.clear(); 
         }
     }
 
@@ -228,7 +231,7 @@ public class ReadWriteCollectionDataAccess implements CollectionDataAccess {
     public void evict(Object key) {
         try {
             CollectionCacheKey cacheKey = CustomUtils.toCacheKey(key, CollectionCacheKey.class);
-            lockMap.remove(cacheKey); 
+            lockMap.remove(cacheKey);
             entityRegion.evict(cacheKey);
         } catch (Exception e) {
             // Log in production
@@ -256,19 +259,17 @@ public class ReadWriteCollectionDataAccess implements CollectionDataAccess {
 
             CollectionCacheKey cacheKey = CustomUtils.toCacheKey(key, CollectionCacheKey.class);
 
-            SoftLock lock = lockItem(session, key, null);
+            SoftLock lock = lockItem(session, cacheKey, null);
             
             if (lock != null) {
-                try {
-                    entityRegion.evict(cacheKey);
-                } finally {
-                    unlockItem(session, key, lock);
-                }
+                lockMap.remove(cacheKey, lock);
+                entityRegion.evict(cacheKey);
             }
         } catch (Exception e) {
             // Log in production
         }
     }
+
 
     @Override
     public void removeAll(SharedSessionContractImplementor session) {
