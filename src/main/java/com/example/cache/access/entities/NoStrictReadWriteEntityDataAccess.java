@@ -9,16 +9,16 @@ import org.hibernate.engine.spi.SharedSessionContractImplementor;
 import org.hibernate.persister.entity.EntityPersister;
 
 import com.example.cache.region.DomainDataRegionAdapter;
-import com.example.cache.region.EntityRegionImpl;
-import com.example.cache.utils.CustomUtils;
+import com.example.cache.region.RegionImpl;
+import com.example.cache.utils.CacheKey;
 
 public class NoStrictReadWriteEntityDataAccess implements EntityDataAccess {
 
-    private final EntityRegionImpl entityRegion;
+    private final RegionImpl entityRegion;
     private final DomainDataRegionAdapter domainDataRegion;
 
 
-    public NoStrictReadWriteEntityDataAccess(EntityRegionImpl entityRegion, DomainDataRegionAdapter domainDataRegion) {
+    public NoStrictReadWriteEntityDataAccess(RegionImpl entityRegion, DomainDataRegionAdapter domainDataRegion) {
         if (entityRegion == null) {
         throw new IllegalArgumentException("entityRegion cannot be null");
         }
@@ -32,7 +32,7 @@ public class NoStrictReadWriteEntityDataAccess implements EntityDataAccess {
     @Override
     public boolean contains(Object key) {
         try {
-            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
+            EntityCacheKey cacheKey = CacheKey.convert(key, EntityCacheKey.class);
 
             return entityRegion.get(cacheKey) != null;
         } catch (Exception e) {
@@ -44,7 +44,7 @@ public class NoStrictReadWriteEntityDataAccess implements EntityDataAccess {
     @Override
     public void evict(Object key) {
         try {
-            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
+            EntityCacheKey cacheKey = CacheKey.convert(key, EntityCacheKey.class);
             entityRegion.evict(cacheKey);
         } catch (Exception e) {
             // Log in production
@@ -63,7 +63,7 @@ public class NoStrictReadWriteEntityDataAccess implements EntityDataAccess {
     @Override
     public Object get(SharedSessionContractImplementor session, Object key) {
         try {
-            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
+            EntityCacheKey cacheKey = CacheKey.convert(key, EntityCacheKey.class);
             return entityRegion.get(cacheKey);
         } catch (Exception e) {
             // Log in production
@@ -110,7 +110,7 @@ public class NoStrictReadWriteEntityDataAccess implements EntityDataAccess {
         }
 
         try {
-            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
+            EntityCacheKey cacheKey = CacheKey.convert(key, EntityCacheKey.class);
             
 
             if (minimalPutOverride && entityRegion.get(cacheKey) != null) {
@@ -128,7 +128,7 @@ public class NoStrictReadWriteEntityDataAccess implements EntityDataAccess {
     @Override
     public void remove(SharedSessionContractImplementor session, Object key) {
         try {
-            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
+            EntityCacheKey cacheKey = CacheKey.convert(key, EntityCacheKey.class);
             entityRegion.evict(cacheKey);
         } catch (Exception e) {
             // Log in production
@@ -165,7 +165,7 @@ public class NoStrictReadWriteEntityDataAccess implements EntityDataAccess {
         }
 
         try {
-            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
+            EntityCacheKey cacheKey = CacheKey.convert(key, EntityCacheKey.class);
             
             entityRegion.put(cacheKey, value);
             return true;
@@ -188,7 +188,7 @@ public class NoStrictReadWriteEntityDataAccess implements EntityDataAccess {
         }
 
         try {
-            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
+            EntityCacheKey cacheKey = CacheKey.convert(key, EntityCacheKey.class);
             
             entityRegion.put(cacheKey, value);
             return true;
@@ -242,7 +242,7 @@ public class NoStrictReadWriteEntityDataAccess implements EntityDataAccess {
                         Object currentVersion,
                         Object previousVersion) {
         try {
-            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
+            EntityCacheKey cacheKey = CacheKey.convert(key, EntityCacheKey.class);
             entityRegion.evict(cacheKey);  
         } catch (Exception e) {
             // Log

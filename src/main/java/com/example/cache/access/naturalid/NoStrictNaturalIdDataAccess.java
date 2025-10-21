@@ -8,15 +8,15 @@ import org.hibernate.engine.spi.SharedSessionContractImplementor;
 import org.hibernate.persister.entity.EntityPersister;
 
 import com.example.cache.region.DomainDataRegionAdapter;
-import com.example.cache.region.EntityRegionImpl;
-import com.example.cache.utils.CustomUtils;
+import com.example.cache.region.RegionImpl;
+import com.example.cache.utils.CacheKey;
 
 public class NoStrictNaturalIdDataAccess implements NaturalIdDataAccess {
-    private final EntityRegionImpl entityRegion;
+    private final RegionImpl entityRegion;
     private final DomainDataRegionAdapter domainDataRegion;
 
 
-    public NoStrictNaturalIdDataAccess(EntityRegionImpl entityRegion, DomainDataRegionAdapter domainDataRegion) {
+    public NoStrictNaturalIdDataAccess(RegionImpl entityRegion, DomainDataRegionAdapter domainDataRegion) {
       if (entityRegion == null) {
         throw new IllegalArgumentException("entityRegion cannot be null");
       }
@@ -30,7 +30,7 @@ public class NoStrictNaturalIdDataAccess implements NaturalIdDataAccess {
     @Override
     public boolean contains(Object key) {
       try {
-          NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
+          NaturalIdCacheKey cacheKey = CacheKey.convert(key, NaturalIdCacheKey.class);
 
             return entityRegion.get(cacheKey) != null;
         } catch (Exception e) {
@@ -42,7 +42,7 @@ public class NoStrictNaturalIdDataAccess implements NaturalIdDataAccess {
     @Override
     public void evict(Object key) {
       try {
-            NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
+            NaturalIdCacheKey cacheKey = CacheKey.convert(key, NaturalIdCacheKey.class);
             entityRegion.evict(cacheKey);
         } catch (Exception e) {
             // Log in production
@@ -61,7 +61,7 @@ public class NoStrictNaturalIdDataAccess implements NaturalIdDataAccess {
     @Override
     public Object get(SharedSessionContractImplementor session, Object key) {
       try {
-          NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
+          NaturalIdCacheKey cacheKey = CacheKey.convert(key, NaturalIdCacheKey.class);
             return entityRegion.get(cacheKey);
         } catch (Exception e) {
             // Log in production
@@ -108,7 +108,7 @@ public class NoStrictNaturalIdDataAccess implements NaturalIdDataAccess {
         }
 
         try {
-            NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
+            NaturalIdCacheKey cacheKey = CacheKey.convert(key, NaturalIdCacheKey.class);
             
 
             if (minimalPutOverride && entityRegion.get(cacheKey) != null) {
@@ -126,7 +126,7 @@ public class NoStrictNaturalIdDataAccess implements NaturalIdDataAccess {
     @Override
     public void remove(SharedSessionContractImplementor session, Object key) {
         try {
-            NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
+            NaturalIdCacheKey cacheKey = CacheKey.convert(key, NaturalIdCacheKey.class);
             entityRegion.evict(cacheKey);
         } catch (Exception e) {
             // Log in production
@@ -162,7 +162,7 @@ public class NoStrictNaturalIdDataAccess implements NaturalIdDataAccess {
         }
 
         try {
-          NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
+          NaturalIdCacheKey cacheKey = CacheKey.convert(key, NaturalIdCacheKey.class);
             
             entityRegion.put(cacheKey, value);
             return true;
@@ -183,7 +183,7 @@ public class NoStrictNaturalIdDataAccess implements NaturalIdDataAccess {
         }
 
         try {
-          NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
+          NaturalIdCacheKey cacheKey = CacheKey.convert(key, NaturalIdCacheKey.class);
             
             entityRegion.put(cacheKey, value);
             return true;
@@ -233,7 +233,7 @@ public class NoStrictNaturalIdDataAccess implements NaturalIdDataAccess {
                         Object key,
                         Object value) {
       try {
-          NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
+          NaturalIdCacheKey cacheKey = CacheKey.convert(key, NaturalIdCacheKey.class);
             entityRegion.evict(cacheKey);  
         } catch (Exception e) {
             // Log
@@ -243,7 +243,7 @@ public class NoStrictNaturalIdDataAccess implements NaturalIdDataAccess {
 
     @Override
     public Object getNaturalIdValues(Object arg0) {
-      NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(arg0, NaturalIdCacheKey.class);
+      NaturalIdCacheKey cacheKey = CacheKey.convert(arg0, NaturalIdCacheKey.class);
       return cacheKey.getNaturalIdValues();
     }
 

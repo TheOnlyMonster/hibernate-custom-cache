@@ -25,7 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class DomainDataRegionAdapter implements DomainDataRegion {
 
-    private final EntityRegionImpl entityRegion;
+    private final RegionImpl entityRegion;
     private final CustomRegionFactory regionFactory;
     private final DomainDataRegionConfig regionConfig;
     private final Map<NavigableRole, EntityDataAccess> entityAccessMap = new ConcurrentHashMap<>();
@@ -33,7 +33,7 @@ public class DomainDataRegionAdapter implements DomainDataRegion {
     private final Map<NavigableRole, NaturalIdDataAccess> naturalIdAccessMap = new ConcurrentHashMap<>();
 
     public DomainDataRegionAdapter(
-            EntityRegionImpl entityRegion, 
+            RegionImpl entityRegion, 
             CustomRegionFactory regionFactory,
             DomainDataRegionConfig regionConfig) {
         this.entityRegion = entityRegion;

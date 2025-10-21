@@ -2,7 +2,7 @@ package com.example.cache.access.entities;
 
 import com.example.cache.metrics.MetricsCollector;
 import com.example.cache.region.DomainDataRegionAdapter;
-import com.example.cache.region.EntityRegionImpl;
+import com.example.cache.region.RegionImpl;
 import org.hibernate.cache.spi.access.AccessType;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.SharedSessionContractImplementor;
@@ -24,7 +24,7 @@ import static org.mockito.Mockito.*;
 class NoStrictReadWriteEntityDataAccessTest {
 
     private NoStrictReadWriteEntityDataAccess dataAccess;
-    private EntityRegionImpl entityRegion;
+    private RegionImpl entityRegion;
     private DomainDataRegionAdapter domainDataRegion;
     private SharedSessionContractImplementor session;
     private SessionFactoryImplementor factory;
@@ -33,7 +33,7 @@ class NoStrictReadWriteEntityDataAccessTest {
     @BeforeEach
     void setUp() {
         MetricsCollector metrics = new MetricsCollector();
-        entityRegion = new EntityRegionImpl("test-region", 100, 60000, metrics);
+        entityRegion = new RegionImpl("test-region", 100, 60000, metrics);
         domainDataRegion = mock(DomainDataRegionAdapter.class);
         dataAccess = new NoStrictReadWriteEntityDataAccess(entityRegion, domainDataRegion);
         

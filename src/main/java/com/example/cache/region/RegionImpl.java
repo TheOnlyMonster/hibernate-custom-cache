@@ -1,29 +1,28 @@
 package com.example.cache.region;
 
+
 import com.example.cache.metrics.MetricsCollector;
 import com.example.cache.storage.InMemoryLRUCache;
-import com.example.cache.utils.CacheKey;
-
-public class EntityRegionImpl {
+public class RegionImpl {
     private final String regionName;
-    private final InMemoryLRUCache<CacheKey, Object> cache;
+    private final InMemoryLRUCache<Object, Object> cache;
     private final MetricsCollector metrics;
 
-    public EntityRegionImpl(String regionName, int maxEntries, long ttlMillis, MetricsCollector metrics) {
+    public RegionImpl(String regionName, int maxEntries, long ttlMillis, MetricsCollector metrics) {
         this.regionName = regionName;
         this.metrics = metrics;
         this.cache = new InMemoryLRUCache<>(maxEntries, ttlMillis, metrics);
     }
 
-    public Object get(CacheKey key) {
+    public Object get(Object key) {
         return cache.get(key);
     }
 
-    public void put(CacheKey key, Object value) {
+    public void put(Object key, Object value) {
         cache.put(key, value);
     }
 
-    public void evict(CacheKey key) {
+    public void evict(Object key) {
         cache.remove(key);
     }
 

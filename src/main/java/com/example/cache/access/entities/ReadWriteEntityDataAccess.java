@@ -14,13 +14,13 @@ import org.hibernate.persister.entity.EntityPersister;
 
 import com.example.cache.access.ReadWriteSoftLock;
 import com.example.cache.region.DomainDataRegionAdapter;
-import com.example.cache.region.EntityRegionImpl;
-import com.example.cache.utils.CustomUtils;
+import com.example.cache.region.RegionImpl;
+import com.example.cache.utils.CacheKey;
 
 
 public class ReadWriteEntityDataAccess implements EntityDataAccess {
 
-    private final EntityRegionImpl entityRegion;
+    private final RegionImpl entityRegion;
     
     private final DomainDataRegionAdapter domainDataRegion;
     
@@ -30,7 +30,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
     
     private static final long LOCK_TIMEOUT_MS = 60000; // 1 minute
 
-    public ReadWriteEntityDataAccess(EntityRegionImpl entityRegion, 
+    public ReadWriteEntityDataAccess(RegionImpl entityRegion, 
                                     DomainDataRegionAdapter domainDataRegion) {
         if (entityRegion == null) {
             throw new IllegalArgumentException("entityRegion cannot be null");
@@ -83,7 +83,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
     @Override
     public boolean contains(Object key) {
         try {
-            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
+            EntityCacheKey cacheKey = CacheKey.convert(key, EntityCacheKey.class);
             
             if (isLocked(cacheKey)) {
                 return false;
@@ -100,7 +100,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
     @Override
     public Object get(SharedSessionContractImplementor session, Object key) {
         try {
-            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
+            EntityCacheKey cacheKey = CacheKey.convert(key, EntityCacheKey.class);
             
             if (isLocked(cacheKey)) {
                 return null;
@@ -134,7 +134,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         }
 
         try {
-            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
+            EntityCacheKey cacheKey = CacheKey.convert(key, EntityCacheKey.class);
             
             if (isLocked(cacheKey)) {
                 return false;
@@ -156,7 +156,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
     @Override
     public SoftLock lockItem(SharedSessionContractImplementor session, Object key, Object version) {
         try {
-            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
+            EntityCacheKey cacheKey = CacheKey.convert(key, EntityCacheKey.class);
             
             if (isRegionLocked()) {
                 return null;
@@ -201,7 +201,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         
         try {
             ReadWriteSoftLock rwLock = (ReadWriteSoftLock) lock;
-            EntityCacheKey cacheKey = CustomUtils.toCacheKey(rwLock.getKey(), EntityCacheKey.class);
+            EntityCacheKey cacheKey = CacheKey.convert(rwLock.getKey(), EntityCacheKey.class);
             
             lockMap.remove(cacheKey, rwLock);
 
@@ -256,7 +256,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         }
 
         try {
-            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
+            EntityCacheKey cacheKey = CacheKey.convert(key, EntityCacheKey.class);
             
             if (isRegionLocked()) {
                 return false;
@@ -307,7 +307,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         }
 
         try {
-            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
+            EntityCacheKey cacheKey = CacheKey.convert(key, EntityCacheKey.class);
             
             if (isRegionLocked()) {
                 return false;
@@ -331,7 +331,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
     @Override
     public void evict(Object key) {
         try {
-            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
+            EntityCacheKey cacheKey = CacheKey.convert(key, EntityCacheKey.class);
             lockMap.remove(cacheKey); 
             entityRegion.evict(cacheKey);
         } catch (Exception e) {
@@ -358,7 +358,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
                 return;
             }
 
-            EntityCacheKey cacheKey = CustomUtils.toCacheKey(key, EntityCacheKey.class);
+            EntityCacheKey cacheKey = CacheKey.convert(key, EntityCacheKey.class);
 
             SoftLock lock = lockItem(session, cacheKey, null);
             
@@ -379,6 +379,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
             lock = lockRegion();
             
             entityRegion.evictAll();
+            lockMap.clear();
             
         } catch (Exception e) {
             // Log in production

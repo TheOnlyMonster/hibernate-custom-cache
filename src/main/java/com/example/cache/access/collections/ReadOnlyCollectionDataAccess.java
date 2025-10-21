@@ -9,15 +9,15 @@ import org.hibernate.engine.spi.SharedSessionContractImplementor;
 import org.hibernate.persister.collection.CollectionPersister;
 
 import com.example.cache.region.DomainDataRegionAdapter;
-import com.example.cache.region.EntityRegionImpl;
-import com.example.cache.utils.CustomUtils;
+import com.example.cache.region.RegionImpl;
+import com.example.cache.utils.CacheKey;
 
 public class ReadOnlyCollectionDataAccess implements CollectionDataAccess {
 
-  private final EntityRegionImpl entityRegion;
+  private final RegionImpl entityRegion;
   private final DomainDataRegionAdapter domainDataRegion;
 
-  public ReadOnlyCollectionDataAccess(EntityRegionImpl entityRegion, DomainDataRegionAdapter domainDataRegion) {
+  public ReadOnlyCollectionDataAccess(RegionImpl entityRegion, DomainDataRegionAdapter domainDataRegion) {
     if (entityRegion == null) {
       throw new IllegalArgumentException("entityRegion cannot be null");
     }
@@ -32,7 +32,7 @@ public class ReadOnlyCollectionDataAccess implements CollectionDataAccess {
   @Override
   public boolean contains(Object key) {
     try {
-      CollectionCacheKey cacheKey = CustomUtils.toCacheKey(key, CollectionCacheKey.class);
+      CollectionCacheKey cacheKey = CacheKey.convert(key, CollectionCacheKey.class);
       return entityRegion.get(cacheKey) != null;
     } catch (Exception e) {
       return false;
@@ -43,7 +43,7 @@ public class ReadOnlyCollectionDataAccess implements CollectionDataAccess {
   @Override
   public Object get(SharedSessionContractImplementor session, Object key) {
     try {
-      CollectionCacheKey cacheKey = CustomUtils.toCacheKey(key, CollectionCacheKey.class);
+      CollectionCacheKey cacheKey = CacheKey.convert(key, CollectionCacheKey.class);
       return entityRegion.get(cacheKey);
     } catch (Exception e) {
       return null;
@@ -70,7 +70,7 @@ public class ReadOnlyCollectionDataAccess implements CollectionDataAccess {
     }
 
     try {
-      CollectionCacheKey cacheKey = CustomUtils.toCacheKey(key, CollectionCacheKey.class);
+      CollectionCacheKey cacheKey = CacheKey.convert(key, CollectionCacheKey.class);
       
       if (minimalPutOverride && entityRegion.get(cacheKey) != null) {
         return false;
@@ -87,7 +87,7 @@ public class ReadOnlyCollectionDataAccess implements CollectionDataAccess {
   @Override
   public void evict(Object key) {
     try {
-      CollectionCacheKey cacheKey = CustomUtils.toCacheKey(key, CollectionCacheKey.class);
+      CollectionCacheKey cacheKey = CacheKey.convert(key, CollectionCacheKey.class);
       entityRegion.evict(cacheKey);
     } catch (Exception e) {
       // Log error in production  

@@ -1,8 +1,9 @@
 package com.example.cache.factory;
 
 import com.example.cache.metrics.MetricsCollector;
-import com.example.cache.region.EntityRegionImpl;
+import com.example.cache.region.RegionImpl;
 import com.example.cache.region.DomainDataRegionAdapter;
+import com.example.cache.region.QueryResultsRegionImpl;
 
 import org.hibernate.cache.CacheException;
 import org.hibernate.cache.cfg.spi.DomainDataRegionBuildingContext;
@@ -72,7 +73,7 @@ public class CustomRegionFactory implements RegionFactory {
             k -> new MetricsCollector()
         );
 
-        EntityRegionImpl entityRegion = new EntityRegionImpl(
+        RegionImpl entityRegion = new RegionImpl(
             regionName,
             DEFAULT_MAX_ENTRIES,
             DEFAULT_TTL_MS,
@@ -86,9 +87,16 @@ public class CustomRegionFactory implements RegionFactory {
     public QueryResultsRegion buildQueryResultsRegion(
             String regionName, 
             SessionFactoryImplementor sessionFactory) {
-        throw new UnsupportedOperationException(
-            "Query results cache not supported. Region: " + regionName
+        RegionImpl queryRegion = new RegionImpl(
+            regionName,
+            DEFAULT_MAX_ENTRIES,
+            DEFAULT_TTL_MS,
+            metricsMap.computeIfAbsent(
+                regionName, 
+                k -> new MetricsCollector()
+            )
         );
+        return new QueryResultsRegionImpl(this, queryRegion);
     }
 
     @Override

@@ -14,11 +14,11 @@ import org.hibernate.persister.collection.CollectionPersister;
 
 import com.example.cache.access.ReadWriteSoftLock;
 import com.example.cache.region.DomainDataRegionAdapter;
-import com.example.cache.region.EntityRegionImpl;
-import com.example.cache.utils.CustomUtils;
+import com.example.cache.region.RegionImpl;
+import com.example.cache.utils.CacheKey;
 
 public class ReadWriteCollectionDataAccess implements CollectionDataAccess {
-    private final EntityRegionImpl entityRegion;
+    private final RegionImpl entityRegion;
     private final DomainDataRegionAdapter domainDataRegion;
     
     private final ConcurrentHashMap<CollectionCacheKey, ReadWriteSoftLock> lockMap = new ConcurrentHashMap<>();
@@ -27,7 +27,7 @@ public class ReadWriteCollectionDataAccess implements CollectionDataAccess {
     
     private static final long LOCK_TIMEOUT_MS = 60000; // 1 minute
 
-    public ReadWriteCollectionDataAccess(EntityRegionImpl entityRegion, 
+    public ReadWriteCollectionDataAccess(RegionImpl entityRegion, 
                                     DomainDataRegionAdapter domainDataRegion) {
         if (entityRegion == null) {
             throw new IllegalArgumentException("entityRegion cannot be null");
@@ -80,7 +80,7 @@ public class ReadWriteCollectionDataAccess implements CollectionDataAccess {
     @Override
     public boolean contains(Object key) {
         try {
-            CollectionCacheKey cacheKey = CustomUtils.toCacheKey(key, CollectionCacheKey.class);
+            CollectionCacheKey cacheKey = CacheKey.convert(key, CollectionCacheKey.class);
             
             if (isLocked(cacheKey)) {
                 return false;
@@ -97,7 +97,7 @@ public class ReadWriteCollectionDataAccess implements CollectionDataAccess {
     @Override
     public Object get(SharedSessionContractImplementor session, Object key) {
         try {
-            CollectionCacheKey cacheKey = CustomUtils.toCacheKey(key, CollectionCacheKey.class);
+            CollectionCacheKey cacheKey = CacheKey.convert(key, CollectionCacheKey.class);
             
             if (isLocked(cacheKey)) {
                 return null;
@@ -131,7 +131,7 @@ public class ReadWriteCollectionDataAccess implements CollectionDataAccess {
         }
 
         try {
-            CollectionCacheKey cacheKey = CustomUtils.toCacheKey(key, CollectionCacheKey.class);
+            CollectionCacheKey cacheKey = CacheKey.convert(key, CollectionCacheKey.class);
             
             if (isLocked(cacheKey)) {
                 return false;
@@ -153,7 +153,7 @@ public class ReadWriteCollectionDataAccess implements CollectionDataAccess {
     @Override
     public SoftLock lockItem(SharedSessionContractImplementor session, Object key, Object version) {
         try {
-            CollectionCacheKey cacheKey = CustomUtils.toCacheKey(key, CollectionCacheKey.class);
+            CollectionCacheKey cacheKey = CacheKey.convert(key, CollectionCacheKey.class);
             
             if (isRegionLocked()) {
                 return null;
@@ -198,7 +198,7 @@ public class ReadWriteCollectionDataAccess implements CollectionDataAccess {
         
         try {
             ReadWriteSoftLock rwLock = (ReadWriteSoftLock) lock;
-            CollectionCacheKey cacheKey = CustomUtils.toCacheKey(rwLock.getKey(), CollectionCacheKey.class);
+            CollectionCacheKey cacheKey = CacheKey.convert(rwLock.getKey(), CollectionCacheKey.class);
             
             lockMap.remove(cacheKey, rwLock);
 
@@ -238,7 +238,7 @@ public class ReadWriteCollectionDataAccess implements CollectionDataAccess {
     @Override
     public void evict(Object key) {
         try {
-            CollectionCacheKey cacheKey = CustomUtils.toCacheKey(key, CollectionCacheKey.class);
+            CollectionCacheKey cacheKey = CacheKey.convert(key, CollectionCacheKey.class);
             lockMap.remove(cacheKey);
             entityRegion.evict(cacheKey);
         } catch (Exception e) {
@@ -265,7 +265,7 @@ public class ReadWriteCollectionDataAccess implements CollectionDataAccess {
                 return;
             }
 
-            CollectionCacheKey cacheKey = CustomUtils.toCacheKey(key, CollectionCacheKey.class);
+            CollectionCacheKey cacheKey = CacheKey.convert(key, CollectionCacheKey.class);
 
             SoftLock lock = lockItem(session, cacheKey, null);
             
@@ -286,6 +286,7 @@ public class ReadWriteCollectionDataAccess implements CollectionDataAccess {
             lock = lockRegion();
             
             entityRegion.evictAll();
+            lockMap.clear();
             
         } catch (Exception e) {
             // Log in production

@@ -12,12 +12,12 @@ import org.hibernate.engine.spi.SharedSessionContractImplementor;
 import org.hibernate.persister.entity.EntityPersister;
 import com.example.cache.access.ReadWriteSoftLock;
 import com.example.cache.region.DomainDataRegionAdapter;
-import com.example.cache.region.EntityRegionImpl;
-import com.example.cache.utils.CustomUtils;
+import com.example.cache.region.RegionImpl;
+import com.example.cache.utils.CacheKey;
 
 public class ReadWriteNaturalIdDataAccess implements NaturalIdDataAccess {
 
-    private final EntityRegionImpl entityRegion;
+    private final RegionImpl entityRegion;
     
     private final DomainDataRegionAdapter domainDataRegion;
     
@@ -27,7 +27,7 @@ public class ReadWriteNaturalIdDataAccess implements NaturalIdDataAccess {
     
     private static final long LOCK_TIMEOUT_MS = 60000; 
 
-    public ReadWriteNaturalIdDataAccess(EntityRegionImpl entityRegion, 
+    public ReadWriteNaturalIdDataAccess(RegionImpl entityRegion, 
                                     DomainDataRegionAdapter domainDataRegion) {
         if (entityRegion == null) {
             throw new IllegalArgumentException("entityRegion cannot be null");
@@ -78,7 +78,7 @@ public class ReadWriteNaturalIdDataAccess implements NaturalIdDataAccess {
     @Override
     public boolean contains(Object key) {
         try {
-            NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
+            NaturalIdCacheKey cacheKey = CacheKey.convert(key, NaturalIdCacheKey.class);
             
             if (isLocked(cacheKey)) {
                 return false;
@@ -95,7 +95,7 @@ public class ReadWriteNaturalIdDataAccess implements NaturalIdDataAccess {
     @Override
     public Object get(SharedSessionContractImplementor session, Object key) {
         try {
-            NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
+            NaturalIdCacheKey cacheKey = CacheKey.convert(key, NaturalIdCacheKey.class);
             
             if (isLocked(cacheKey)) {
                 return null;
@@ -129,7 +129,7 @@ public class ReadWriteNaturalIdDataAccess implements NaturalIdDataAccess {
         }
 
         try {
-            NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
+            NaturalIdCacheKey cacheKey = CacheKey.convert(key, NaturalIdCacheKey.class);
             
             if (isLocked(cacheKey)) {
                 return false;
@@ -151,7 +151,7 @@ public class ReadWriteNaturalIdDataAccess implements NaturalIdDataAccess {
     @Override
     public SoftLock lockItem(SharedSessionContractImplementor session, Object key, Object version) {
         try {
-            NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
+            NaturalIdCacheKey cacheKey = CacheKey.convert(key, NaturalIdCacheKey.class);
 
             if (isRegionLocked()) {
                 return null;
@@ -196,7 +196,7 @@ public class ReadWriteNaturalIdDataAccess implements NaturalIdDataAccess {
         
         try {
             ReadWriteSoftLock rwLock = (ReadWriteSoftLock) lock;
-            NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
+            NaturalIdCacheKey cacheKey = CacheKey.convert(key, NaturalIdCacheKey.class);
             
             lockMap.remove(cacheKey, rwLock);
 
@@ -238,7 +238,7 @@ public class ReadWriteNaturalIdDataAccess implements NaturalIdDataAccess {
     @Override
     public void evict(Object key) {
         try {
-            NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
+            NaturalIdCacheKey cacheKey = CacheKey.convert(key, NaturalIdCacheKey.class);
             lockMap.remove(cacheKey); 
             entityRegion.evict(cacheKey);
         } catch (Exception e) {
@@ -265,7 +265,7 @@ public class ReadWriteNaturalIdDataAccess implements NaturalIdDataAccess {
                 return;
             }
 
-            NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
+            NaturalIdCacheKey cacheKey = CacheKey.convert(key, NaturalIdCacheKey.class);
 
             SoftLock lock = lockItem(session, cacheKey, null);
             
@@ -286,6 +286,7 @@ public class ReadWriteNaturalIdDataAccess implements NaturalIdDataAccess {
             lock = lockRegion();
             
             entityRegion.evictAll();
+            lockMap.clear();
             
         } catch (Exception e) {
             // Log in production
@@ -341,7 +342,7 @@ public class ReadWriteNaturalIdDataAccess implements NaturalIdDataAccess {
 
     @Override
     public Object getNaturalIdValues(Object arg0) {
-        NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(arg0, NaturalIdCacheKey.class);
+        NaturalIdCacheKey cacheKey = CacheKey.convert(arg0, NaturalIdCacheKey.class);
         return cacheKey.getNaturalIdValues();
     }
 
@@ -364,7 +365,7 @@ public class ReadWriteNaturalIdDataAccess implements NaturalIdDataAccess {
         }
 
         try {
-            NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
+            NaturalIdCacheKey cacheKey = CacheKey.convert(key, NaturalIdCacheKey.class);
             
             if (isRegionLocked()) {
                 return false;
@@ -411,7 +412,7 @@ public class ReadWriteNaturalIdDataAccess implements NaturalIdDataAccess {
         }
 
         try {
-            NaturalIdCacheKey cacheKey = CustomUtils.toCacheKey(key, NaturalIdCacheKey.class);
+            NaturalIdCacheKey cacheKey = CacheKey.convert(key, NaturalIdCacheKey.class);
 
             if (isRegionLocked()) {
                 return false;

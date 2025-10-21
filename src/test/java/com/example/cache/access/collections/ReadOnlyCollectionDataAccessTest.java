@@ -4,7 +4,7 @@ import com.example.cache.access.collections.CollectionCacheKey;
 import com.example.cache.access.collections.ReadOnlyCollectionDataAccess;
 import com.example.cache.metrics.MetricsCollector;
 import com.example.cache.region.DomainDataRegionAdapter;
-import com.example.cache.region.EntityRegionImpl;
+import com.example.cache.region.RegionImpl;
 import org.hibernate.cache.spi.access.AccessType;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.SharedSessionContractImplementor;
@@ -20,7 +20,7 @@ import static org.mockito.Mockito.*;
 class ReadOnlyCollectionDataAccessTest {
 
     private ReadOnlyCollectionDataAccess dataAccess;
-    private EntityRegionImpl entityRegion;
+    private RegionImpl entityRegion;
     private DomainDataRegionAdapter domainDataRegion;
     private SharedSessionContractImplementor session;
     private CollectionPersister persister;
@@ -29,7 +29,7 @@ class ReadOnlyCollectionDataAccessTest {
     @BeforeEach
     void setUp() {
         MetricsCollector metrics = new MetricsCollector();
-        entityRegion = new EntityRegionImpl("test-region", 100, 60000, metrics);
+        entityRegion = new RegionImpl("test-region", 100, 60000, metrics);
         domainDataRegion = mock(DomainDataRegionAdapter.class);
         dataAccess = new ReadOnlyCollectionDataAccess(entityRegion, domainDataRegion);
         
