@@ -1,48 +1,79 @@
 package com.example.cache.region;
 
+
 import org.hibernate.cache.CacheException;
 import org.hibernate.cache.spi.QueryResultsRegion;
 import org.hibernate.cache.spi.RegionFactory;
 import org.hibernate.engine.spi.SharedSessionContractImplementor;
-import com.example.cache.factory.CustomRegionFactory;
 
 public class QueryResultsRegionImpl implements QueryResultsRegion {
-  private final CustomRegionFactory regionFactory;
-  private final RegionImpl queryRegion; 
+  
+  private CustomRegionFactory regionFactory;
+  private RegionImpl queryRegion;
+  private final String regionName;
+  private volatile boolean destroyed = false;
 
   public QueryResultsRegionImpl(CustomRegionFactory regionFactory, RegionImpl queryRegion) {
     this.regionFactory = regionFactory;
     this.queryRegion = queryRegion;
+    this.regionName = queryRegion.getRegionName();
   }
 
   @Override
-  public Object getFromCache(Object arg0, SharedSessionContractImplementor arg1) {
-    return queryRegion.get(arg0);
+  public Object getFromCache(Object key, SharedSessionContractImplementor session) {
+    if (destroyed) {
+      return null;
+    }
+    return queryRegion.get(key);
   }
 
   @Override
-  public void putIntoCache(Object arg0, Object arg1, SharedSessionContractImplementor arg2) {
-    queryRegion.put(arg0, arg1);
+  public void putIntoCache(Object key, Object value, SharedSessionContractImplementor session) {
+    if (destroyed) {
+      return;
+    }
+    queryRegion.put(key, value);
   }
 
   @Override
   public void clear() {
-    queryRegion.evictAll();
+    if (!destroyed) {
+      queryRegion.evictAll();
+    }
   }
 
   @Override
   public void destroy() throws CacheException {
-    queryRegion.evictAll();
+    if (destroyed) {
+      return; 
+    }
+    
+    destroyed = true;
+    
+    try {
+      if (queryRegion != null) {
+        queryRegion.evictAll();
+      }
+      
+      if (regionFactory != null) {
+        regionFactory.unregisterQueryResultsRegion(regionName);
+      }
+      
+      queryRegion = null;
+      regionFactory = null;
+      
+    } catch (Exception e) {
+      throw new CacheException("Failed to destroy query results region: " + regionName, e);
+    }
   }
 
   @Override
   public String getName() {
-    return queryRegion.getRegionName();
+    return regionName;
   }
 
   @Override
   public RegionFactory getRegionFactory() {
     return regionFactory;
   }
-  
 }

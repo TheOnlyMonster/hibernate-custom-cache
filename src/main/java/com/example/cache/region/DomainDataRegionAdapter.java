@@ -18,19 +18,20 @@ import com.example.cache.access.entities.ReadWriteEntityDataAccess;
 import com.example.cache.access.naturalid.NoStrictNaturalIdDataAccess;
 import com.example.cache.access.naturalid.ReadOnlyNaturalIdDataAccess;
 import com.example.cache.access.naturalid.ReadWriteNaturalIdDataAccess;
-import com.example.cache.factory.CustomRegionFactory;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class DomainDataRegionAdapter implements DomainDataRegion {
 
-    private final RegionImpl entityRegion;
-    private final CustomRegionFactory regionFactory;
+    private RegionImpl entityRegion;
+    private CustomRegionFactory regionFactory;
+    private final String regionName;
     private final DomainDataRegionConfig regionConfig;
     private final Map<NavigableRole, EntityDataAccess> entityAccessMap = new ConcurrentHashMap<>();
     private final Map<NavigableRole, CollectionDataAccess> collectionAccessMap = new ConcurrentHashMap<>();
     private final Map<NavigableRole, NaturalIdDataAccess> naturalIdAccessMap = new ConcurrentHashMap<>();
+    private volatile boolean destroyed = false;
 
     public DomainDataRegionAdapter(
             RegionImpl entityRegion, 
@@ -38,11 +39,15 @@ public class DomainDataRegionAdapter implements DomainDataRegion {
             DomainDataRegionConfig regionConfig) {
         this.entityRegion = entityRegion;
         this.regionFactory = regionFactory;
+        this.regionName = entityRegion.getRegionName();
         this.regionConfig = regionConfig;
     }
 
     @Override
     public EntityDataAccess getEntityDataAccess(NavigableRole rootEntityRole) {
+        if (destroyed) {
+            throw new IllegalStateException("Region has been destroyed: " + regionName);
+        }
         return entityAccessMap.computeIfAbsent(rootEntityRole, role -> {
             AccessType accessType = determineAccessType(role);
             return createEntityDataAccess(accessType);
@@ -51,22 +56,25 @@ public class DomainDataRegionAdapter implements DomainDataRegion {
     
     @Override
     public CollectionDataAccess getCollectionDataAccess(NavigableRole collectionRole) {
+        if (destroyed) {
+            throw new IllegalStateException("Region has been destroyed: " + regionName);
+        }
         return collectionAccessMap.computeIfAbsent(collectionRole, role -> {
             AccessType accessType = determineAccessType(role);
             return createCollectionDataAccess(accessType);
         });
     }
-    
-    
 
     @Override
     public NaturalIdDataAccess getNaturalIdDataAccess(NavigableRole rootEntityRole) {
+        if (destroyed) {
+            throw new IllegalStateException("Region has been destroyed: " + regionName);
+        }
         return naturalIdAccessMap.computeIfAbsent(rootEntityRole, role -> {
             AccessType accessType = determineAccessType(role);
             return createNaturalIdDataAccess(accessType);
         });
     }
-
 
     private AccessType determineAccessType(NavigableRole role) {
         for (var entityConfig : regionConfig.getEntityCaching()) {
@@ -74,28 +82,21 @@ public class DomainDataRegionAdapter implements DomainDataRegion {
                 return entityConfig.getAccessType();
             }
         }
-
         return regionFactory.getDefaultAccessType();
     }
-    
     
     private CollectionDataAccess createCollectionDataAccess(AccessType accessType) {
         switch (accessType) {
             case READ_ONLY:
                 return new ReadOnlyCollectionDataAccess(entityRegion, this);
-                
             case READ_WRITE:
                 return new ReadWriteCollectionDataAccess(entityRegion, this);
-                
             case NONSTRICT_READ_WRITE:
                 return new NoStrictReadWriteCollectionDataAccess(entityRegion, this);
-                
             case TRANSACTIONAL:
-                // TODO: Implement transactional access
                 throw new UnsupportedOperationException(
                     "TRANSACTIONAL access type requires JTA support - not implemented"
                 );
-                
             default:
                 throw new CacheException("Unknown access type: " + accessType);
         }
@@ -105,19 +106,14 @@ public class DomainDataRegionAdapter implements DomainDataRegion {
         switch (accessType) {
             case READ_ONLY:
                 return new ReadOnlyEntityDataAccess(entityRegion, this);
-                
             case READ_WRITE:
                 return new ReadWriteEntityDataAccess(entityRegion, this);
-                
             case NONSTRICT_READ_WRITE:
                 return new NoStrictReadWriteEntityDataAccess(entityRegion, this);
-                
             case TRANSACTIONAL:
-                // TODO: Implement transactional access
                 throw new UnsupportedOperationException(
                     "TRANSACTIONAL access type requires JTA support - not implemented"
                 );
-                
             default:
                 throw new CacheException("Unknown access type: " + accessType);
         }
@@ -127,18 +123,14 @@ public class DomainDataRegionAdapter implements DomainDataRegion {
         switch (accessType) {
             case READ_ONLY:
                 return new ReadOnlyNaturalIdDataAccess(entityRegion, this);
-                
             case READ_WRITE:
                 return new ReadWriteNaturalIdDataAccess(entityRegion, this);
-
             case NONSTRICT_READ_WRITE:
                 return new NoStrictNaturalIdDataAccess(entityRegion, this);
-                
             case TRANSACTIONAL:
                 throw new UnsupportedOperationException(
                     "TRANSACTIONAL access type requires JTA support - not implemented"
                 );
-                
             default:
                 throw new CacheException("Unknown access type: " + accessType);
         }
@@ -146,18 +138,44 @@ public class DomainDataRegionAdapter implements DomainDataRegion {
 
     @Override
     public void clear() {
-        entityRegion.evictAll();
+        if (!destroyed) {
+            entityRegion.evictAll();
+        }
     }
 
     @Override
     public void destroy() throws CacheException {
-        entityAccessMap.clear();
-        entityRegion.evictAll();
+        if (destroyed) {
+            return; 
+        }
+        
+        destroyed = true;
+        
+        try {
+
+            if (entityRegion != null) {
+                entityRegion.evictAll();
+            }
+            
+            entityAccessMap.clear();
+            collectionAccessMap.clear();
+            naturalIdAccessMap.clear();
+            
+            if (regionFactory != null) {
+                regionFactory.unregisterDomainDataRegion(regionName);
+            }
+            
+            entityRegion = null;
+            regionFactory = null;
+            
+        } catch (Exception e) {
+            throw new CacheException("Failed to destroy domain data region: " + regionName, e);
+        }
     }
 
     @Override
     public String getName() {
-        return entityRegion.getRegionName();
+        return regionName;
     }
 
     @Override
