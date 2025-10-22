@@ -2,6 +2,14 @@
 
 A custom cache implementation for Hibernate ORM built after learning Hibernate. This project implements different concurrency strategies and provides a thread-safe caching solution.
 
+## Architecture Overview
+
+The custom cache system follows a layered architecture where Hibernate ORM creates different types of cache regions through a factory pattern, each backed by a core implementation that uses an in-memory LRU cache with comprehensive monitoring.
+
+![Hibernate Cache Architecture](docs/images/hibernate-cache-architecture.png)
+
+_This diagram shows the high-level flow from Hibernate ORM through the CustomRegionFactory to different region implementations, all backed by the core RegionImpl and InMemoryLRUCache with metrics collection._
+
 ## What it does
 
 This cache supports multiple concurrency strategies:
@@ -18,6 +26,42 @@ This cache supports multiple concurrency strategies:
 - Soft locking mechanism to prevent cache corruption
 - Performance metrics and monitoring
 - Integration with Hibernate's second-level cache
+
+## Region Factory Pattern
+
+The `CustomRegionFactory` creates three distinct types of cache regions, each optimized for different data access patterns:
+
+![Region Factory Pattern](docs/images/region-factory-pattern.png)
+
+_This diagram illustrates how the CustomRegionFactory builds different types of regions and how the DomainDataRegionAdapter coordinates various data access strategies for entity management._
+
+### Region Types
+
+- **Timestamps Regions**: Track cache invalidation timestamps
+- **Query Results Regions**: Cache query execution results
+- **Domain Data Regions**: Cache entity data with specialized access patterns
+
+## LRU Cache Implementation
+
+The core caching mechanism uses a thread-safe in-memory LRU cache with the following architecture:
+
+![LRU Cache Class Diagram](docs/images/lru-cache-class-diagram.png)
+
+_This UML class diagram shows the InMemoryLRUCache class structure with its internal data structures and the Node class that represents individual cache entries._
+
+### Data Structure Flow
+
+The LRU cache maintains data in a doubly-linked list with sentinel nodes for efficient operations:
+
+![Doubly Linked List Structure](docs/images/doubly-linked-list.png)
+
+_This diagram shows how the doubly-linked list maintains the LRU order with sentinel nodes at head and tail, where Node1 is the Most Recently Used (MRU) and Node4 is the Least Recently Used (LRU)._
+
+### Cache Operations Flow
+
+![Cache Operations Architecture](docs/images/cache-operations-architecture.png)
+
+_This diagram illustrates the complete cache architecture showing how configuration flows through the system, the internal data structures used, and how metrics are collected._
 
 ## Tech Stack
 
@@ -38,6 +82,23 @@ src/main/java/com/example/cache/
 ├── metrics/          # Performance tracking
 └── config/           # Configuration management
 ```
+
+## System Flow
+
+The diagrams above show how the different components work together:
+
+1. **Hibernate Integration**: Hibernate ORM calls `CustomRegionFactory` to create cache regions
+2. **Region Creation**: The factory creates specialized regions (timestamps, queries, domain data)
+3. **Core Implementation**: All regions delegate to `RegionImpl` for core functionality
+4. **Data Storage**: `RegionImpl` uses `InMemoryLRUCache` for actual data storage
+5. **Monitoring**: All operations are tracked by `MetricsCollector` for performance analysis
+
+### Key Design Patterns
+
+- **Factory Pattern**: `CustomRegionFactory` creates different region types
+- **Adapter Pattern**: `DomainDataRegionAdapter` coordinates different data access strategies
+- **Strategy Pattern**: Different concurrency strategies for different data types
+- **Observer Pattern**: `MetricsCollector` observes cache operations
 
 ## Usage
 
