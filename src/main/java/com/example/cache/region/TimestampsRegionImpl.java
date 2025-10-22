@@ -5,6 +5,8 @@ import org.hibernate.cache.spi.RegionFactory;
 import org.hibernate.cache.spi.TimestampsRegion;
 import org.hibernate.engine.spi.SharedSessionContractImplementor;
 
+import com.example.cache.factory.CustomRegionFactory;
+
 public class TimestampsRegionImpl implements TimestampsRegion {
 
   private CustomRegionFactory regionFactory;

@@ -11,6 +11,8 @@ import org.hibernate.cache.spi.access.SoftLock;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.SharedSessionContractImplementor;
 import org.hibernate.persister.entity.EntityPersister;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.example.cache.access.ReadWriteSoftLock;
 import com.example.cache.region.DomainDataRegionAdapter;
@@ -20,6 +22,8 @@ import com.example.cache.utils.CacheKey;
 
 public class ReadWriteEntityDataAccess implements EntityDataAccess {
 
+    private static final Logger logger = LoggerFactory.getLogger(ReadWriteEntityDataAccess.class);
+    
     private final RegionImpl entityRegion;
     
     private final DomainDataRegionAdapter domainDataRegion;
@@ -28,7 +32,8 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
     
     private final AtomicReference<ReadWriteSoftLock> regionLock = new AtomicReference<>();
     
-    private static final long LOCK_TIMEOUT_MS = 60000; // 1 minute
+    private static final long DEFAULT_LOCK_TIMEOUT_MS = 60000; // 1 minute
+    private final long lockTimeoutMs;
 
     public ReadWriteEntityDataAccess(RegionImpl entityRegion, 
                                     DomainDataRegionAdapter domainDataRegion) {
@@ -40,6 +45,15 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
         }
         this.entityRegion = entityRegion;
         this.domainDataRegion = domainDataRegion;
+        
+        // Get lock timeout from configuration
+        var regionFactory = domainDataRegion.getRegionFactory();
+        if (regionFactory instanceof com.example.cache.factory.CustomRegionFactory) {
+            var config = ((com.example.cache.factory.CustomRegionFactory) regionFactory).getConfiguration();
+            this.lockTimeoutMs = config != null ? config.getLockTimeoutMillis() : DEFAULT_LOCK_TIMEOUT_MS;
+        } else {
+            this.lockTimeoutMs = DEFAULT_LOCK_TIMEOUT_MS;
+        }
     }
 
     
@@ -76,7 +90,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
 
 
     private boolean isLockExpired(ReadWriteSoftLock lock) {
-        return System.currentTimeMillis() - lock.getTimestamp() > LOCK_TIMEOUT_MS;
+        return System.currentTimeMillis() - lock.getTimestamp() > lockTimeoutMs;
     }
 
 
@@ -91,7 +105,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
             
             return entityRegion.get(cacheKey) != null;
         } catch (Exception e) {
-            // Log in production
+            logger.warn("Cache contains operation failed for key: {}", key, e);
             return false;
         }
     }
@@ -108,7 +122,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
             
             return entityRegion.get(cacheKey);
         } catch (Exception e) {
-            // Log in production
+            logger.warn("Cache get operation failed for key: {}", key, e);
             return null;
         }
     }
@@ -147,7 +161,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
             entityRegion.put(cacheKey, value);
             return true;
         } catch (Exception e) {
-            // Log in production
+            logger.warn("Cache putFromLoad operation failed for key: {}", key, e);
             return false;
         }
     }
@@ -164,31 +178,39 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
             
             Object currentValue = entityRegion.get(cacheKey);
 
-            ReadWriteSoftLock newLock = new ReadWriteSoftLock(cacheKey, currentValue, version);
+            long startTime = System.currentTimeMillis();
+            long timeoutMs = Math.min(lockTimeoutMs, 1000); 
             
-            ReadWriteSoftLock existingLock = lockMap.putIfAbsent(cacheKey, newLock);
-            
-            if (existingLock != null) {
+            while (System.currentTimeMillis() - startTime < timeoutMs) {
+                ReadWriteSoftLock newLock = new ReadWriteSoftLock(cacheKey, currentValue, version);
+                
+                ReadWriteSoftLock existingLock = lockMap.putIfAbsent(cacheKey, newLock);
+                
+                if (existingLock == null) {
+                    entityRegion.evict(cacheKey);
+                    return newLock;
+                }
                 
                 if (isLockExpired(existingLock)) {
-
                     if (lockMap.replace(cacheKey, existingLock, newLock)) {
                         entityRegion.evict(cacheKey);
                         return newLock;
                     }
                 }
-
-                throw new CacheException("Key already locked: " + key);
+                
+                try {
+                    Thread.sleep(1); 
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return null;
+                }
             }
             
-            // Lock acquired successfully
-            entityRegion.evict(cacheKey);
-            return newLock;
+            return null;
             
-        } catch (CacheException e) {
-            throw e;
         } catch (Exception e) {
-            throw new CacheException("Failed to lock item: " + key, e);
+            logger.warn("Failed to lock item: {}", key, e);
+            return null;
         }
     }
 
@@ -209,7 +231,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
 
             
         } catch (Exception e) {
-            // Log in production - don't throw, unlocking should be best-effort
+            logger.warn("Cache unlockItem operation failed for key: {}", key, e);
         }
     }
 
@@ -266,7 +288,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
             return true;
             
         } catch (Exception e) {
-            // Log in production
+            logger.warn("Cache afterInsert operation failed for key: {}", key, e);
             return false;
         }
     }
@@ -289,7 +311,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
             return lock != null;
             
         } catch (Exception e) {
-            // Log in production
+            logger.warn("Cache update operation failed for key: {}", key, e);
             return false;
         }
     }
@@ -322,7 +344,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
             return true;
             
         } catch (Exception e) {
-            // Log in production
+            logger.warn("Cache afterUpdate operation failed for key: {}", key, e);
             return false;
         }
     }
@@ -335,7 +357,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
             lockMap.remove(cacheKey); 
             entityRegion.evict(cacheKey);
         } catch (Exception e) {
-            // Log in production
+            logger.warn("Cache evict operation failed for key: {}", key, e);
         }
     }
 
@@ -346,7 +368,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
             lockMap.clear();
             entityRegion.evictAll();
         } catch (Exception e) {
-            // Log in production
+            logger.warn("Cache evictAll operation failed", e);
         }
     }
 
@@ -367,7 +389,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
                 entityRegion.evict(cacheKey);
             }
         } catch (Exception e) {
-            // Log in production
+            logger.warn("Cache remove operation failed for key: {}", key, e);
         }
     }
 
@@ -382,7 +404,7 @@ public class ReadWriteEntityDataAccess implements EntityDataAccess {
             lockMap.clear();
             
         } catch (Exception e) {
-            // Log in production
+            logger.warn("Cache removeAll operation failed", e);
         } finally {
             if (lock != null) {
                 unlockRegion(lock);

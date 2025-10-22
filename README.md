@@ -1,2 +1,0 @@
-# hibernate-custom-cache
-

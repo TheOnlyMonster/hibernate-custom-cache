@@ -16,6 +16,9 @@ public final class NaturalIdCacheKey implements Serializable, CacheKey {
     public NaturalIdCacheKey(Object[] naturalIdValues, String entityName, String tenantId) {
         if (naturalIdValues == null || naturalIdValues.length == 0)
             throw new IllegalArgumentException("Natural ID values cannot be null or empty");
+        if (entityName == null || entityName.trim().isEmpty()) {
+            throw new IllegalArgumentException("Entity name cannot be null or empty");
+        }
         this.naturalIdValues = naturalIdValues;
         this.entityName = entityName;
         this.tenantId = tenantId;

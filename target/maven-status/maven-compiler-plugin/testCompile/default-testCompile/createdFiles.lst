@@ -1,5 +1,11 @@
+com\example\cache\integration\HibernateCacheIntegrationTest.class
 com\example\cache\access\entities\NoStrictReadWriteEntityDataAccessTest.class
 com\example\cache\access\collections\ReadOnlyCollectionDataAccessTest.class
 com\example\cache\access\entities\ReadWriteEntityDataAccessTest.class
+com\example\cache\concurrency\ConcurrencyTest.class
 com\example\cache\access\entities\ReadOnlyEntityDataAccessTest.class
+com\example\cache\integration\HibernateCacheIntegrationTest$TestUser.class
+com\example\cache\config\CacheConfigurationTest.class
+com\example\cache\performance\PerformanceTest.class
 com\example\cache\storage\InMemoryLRUCacheTest.class
+com\example\cache\metrics\MetricsTest.class

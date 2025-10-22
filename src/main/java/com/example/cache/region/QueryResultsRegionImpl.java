@@ -6,6 +6,8 @@ import org.hibernate.cache.spi.QueryResultsRegion;
 import org.hibernate.cache.spi.RegionFactory;
 import org.hibernate.engine.spi.SharedSessionContractImplementor;
 
+import com.example.cache.factory.CustomRegionFactory;
+
 public class QueryResultsRegionImpl implements QueryResultsRegion {
   
   private CustomRegionFactory regionFactory;

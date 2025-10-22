@@ -9,6 +9,12 @@ public class RegionImpl {
     private final MetricsCollector metrics;
 
     public RegionImpl(String regionName, int maxEntries, long ttlMillis, MetricsCollector metrics) {
+        if (regionName == null || regionName.trim().isEmpty()) {
+            throw new IllegalArgumentException("Region name cannot be null or empty");
+        }
+        if (metrics == null) {
+            throw new IllegalArgumentException("MetricsCollector cannot be null");
+        }
         this.regionName = regionName;
         this.metrics = metrics;
         this.cache = new InMemoryLRUCache<>(maxEntries, ttlMillis, metrics);
@@ -36,5 +42,9 @@ public class RegionImpl {
 
     public MetricsCollector getMetrics() {
         return metrics;
+    }
+    
+    public int size() {
+        return cache.size();
     }
 }

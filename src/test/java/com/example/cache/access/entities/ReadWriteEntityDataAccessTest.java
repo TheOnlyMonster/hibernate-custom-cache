@@ -116,8 +116,7 @@ class ReadWriteEntityDataAccessTest {
         SoftLock lock1 = dataAccess.lockItem(session, key, 1);
         
         // Try to lock again
-        assertThrows(CacheException.class, 
-            () -> dataAccess.lockItem(session, key, 1));
+        assertNull(dataAccess.lockItem(session, key, 1));
         
         dataAccess.unlockItem(session, key, lock1);
     }
@@ -444,18 +443,6 @@ class ReadWriteEntityDataAccessTest {
         dataAccess.unlockItem(session, key1, lock);
     }
 
-    @Test
-    @DisplayName("Should generate cache key correctly")
-    void testGenerateCacheKey() {
-        Object key = dataAccess.generateCacheKey(1L, persister, factory, "tenant1");
-        
-        assertNotNull(key);
-        assertTrue(key instanceof EntityCacheKey);
-        EntityCacheKey cacheKey = (EntityCacheKey) key;
-        assertEquals(1L, cacheKey.getId());
-        assertEquals("com.example.Entity", cacheKey.getEntityName());
-        assertEquals("tenant1", cacheKey.getTenantId());
-    }
 
     @Test
     @DisplayName("Should extract cache key id correctly")

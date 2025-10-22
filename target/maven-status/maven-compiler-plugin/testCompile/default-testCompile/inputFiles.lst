@@ -1,5 +1,10 @@
 C:\Users\abdel\OneDrive\Desktop\My-Github-Projects\hibernate-custom-cache\src\test\java\com\example\cache\access\collections\ReadOnlyCollectionDataAccessTest.java
+C:\Users\abdel\OneDrive\Desktop\My-Github-Projects\hibernate-custom-cache\src\test\java\com\example\cache\integration\HibernateCacheIntegrationTest.java
+C:\Users\abdel\OneDrive\Desktop\My-Github-Projects\hibernate-custom-cache\src\test\java\com\example\cache\metrics\MetricsTest.java
 C:\Users\abdel\OneDrive\Desktop\My-Github-Projects\hibernate-custom-cache\src\test\java\com\example\cache\access\entities\NoStrictReadWriteEntityDataAccessTest.java
+C:\Users\abdel\OneDrive\Desktop\My-Github-Projects\hibernate-custom-cache\src\test\java\com\example\cache\performance\PerformanceTest.java
 C:\Users\abdel\OneDrive\Desktop\My-Github-Projects\hibernate-custom-cache\src\test\java\com\example\cache\access\entities\ReadWriteEntityDataAccessTest.java
+C:\Users\abdel\OneDrive\Desktop\My-Github-Projects\hibernate-custom-cache\src\test\java\com\example\cache\concurrency\ConcurrencyTest.java
+C:\Users\abdel\OneDrive\Desktop\My-Github-Projects\hibernate-custom-cache\src\test\java\com\example\cache\config\CacheConfigurationTest.java
 C:\Users\abdel\OneDrive\Desktop\My-Github-Projects\hibernate-custom-cache\src\test\java\com\example\cache\storage\InMemoryLRUCacheTest.java
 C:\Users\abdel\OneDrive\Desktop\My-Github-Projects\hibernate-custom-cache\src\test\java\com\example\cache\access\entities\ReadOnlyEntityDataAccessTest.java

@@ -161,31 +161,39 @@ public class ReadWriteCollectionDataAccess implements CollectionDataAccess {
             
             Object currentValue = entityRegion.get(cacheKey);
 
-            ReadWriteSoftLock newLock = new ReadWriteSoftLock(cacheKey, currentValue, version);
+            long startTime = System.currentTimeMillis();
+            long timeoutMs = Math.min(LOCK_TIMEOUT_MS, 1000); 
             
-            ReadWriteSoftLock existingLock = lockMap.putIfAbsent(cacheKey, newLock);
-            
-            if (existingLock != null) {
+            while (System.currentTimeMillis() - startTime < timeoutMs) {
+                ReadWriteSoftLock newLock = new ReadWriteSoftLock(cacheKey, currentValue, version);
+                
+                ReadWriteSoftLock existingLock = lockMap.putIfAbsent(cacheKey, newLock);
+                
+                if (existingLock == null) {
+                    entityRegion.evict(cacheKey);
+                    return newLock;
+                }
                 
                 if (isLockExpired(existingLock)) {
-
                     if (lockMap.replace(cacheKey, existingLock, newLock)) {
                         entityRegion.evict(cacheKey);
                         return newLock;
                     }
                 }
-
-                throw new CacheException("Key already locked: " + key);
+                
+                try {
+                    Thread.sleep(1); 
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return null;
+                }
             }
             
-            // Lock acquired successfully
-            entityRegion.evict(cacheKey);
-            return newLock;
+            return null;
             
-        } catch (CacheException e) {
-            throw e;
         } catch (Exception e) {
-            throw new CacheException("Failed to lock item: " + key, e);
+            // Log in production
+            return null;
         }
     }
 

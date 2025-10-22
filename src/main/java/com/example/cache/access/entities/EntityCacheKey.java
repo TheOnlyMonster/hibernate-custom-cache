@@ -14,6 +14,12 @@ public final class EntityCacheKey implements Serializable, CacheKey {
     private final String tenantId;
 
     public EntityCacheKey(Object id, String entityName, String tenantId) {
+        if (id == null) {
+            throw new IllegalArgumentException("Entity ID cannot be null");
+        }
+        if (entityName == null || entityName.trim().isEmpty()) {
+            throw new IllegalArgumentException("Entity name cannot be null or empty");
+        }
         this.id = id;
         this.entityName = entityName;
         this.tenantId = tenantId;

@@ -18,6 +18,7 @@ import com.example.cache.access.entities.ReadWriteEntityDataAccess;
 import com.example.cache.access.naturalid.NoStrictNaturalIdDataAccess;
 import com.example.cache.access.naturalid.ReadOnlyNaturalIdDataAccess;
 import com.example.cache.access.naturalid.ReadWriteNaturalIdDataAccess;
+import com.example.cache.factory.CustomRegionFactory;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;

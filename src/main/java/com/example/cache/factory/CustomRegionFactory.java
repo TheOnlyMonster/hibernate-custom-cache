@@ -1,9 +1,10 @@
 package com.example.cache.factory;
-
+import com.example.cache.config.CacheConfiguration;
 import com.example.cache.metrics.MetricsCollector;
-import com.example.cache.region.RegionImpl;
 import com.example.cache.region.DomainDataRegionAdapter;
 import com.example.cache.region.QueryResultsRegionImpl;
+import com.example.cache.region.RegionImpl;
+import com.example.cache.region.TimestampsRegionImpl;
 
 import org.hibernate.cache.CacheException;
 import org.hibernate.cache.cfg.spi.DomainDataRegionBuildingContext;
@@ -12,6 +13,8 @@ import org.hibernate.cache.spi.*;
 import org.hibernate.cache.spi.access.AccessType;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.boot.spi.SessionFactoryOptions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -19,22 +22,60 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class CustomRegionFactory implements RegionFactory {
 
+    private static final Logger logger = LoggerFactory.getLogger(CustomRegionFactory.class);
+    
     private final AtomicLong nextTimestamp = new AtomicLong();
     private final Map<String, MetricsCollector> metricsMap = new ConcurrentHashMap<>();
-    private SessionFactoryOptions settings;
     
-    private static final int DEFAULT_MAX_ENTRIES = 10000;
-    private static final long DEFAULT_TTL_MS = 60 * 60 * 1000; 
+    private final Map<String, DomainDataRegion> domainDataRegions = new ConcurrentHashMap<>();
+    private final Map<String, QueryResultsRegion> queryResultsRegions = new ConcurrentHashMap<>();
+    private final Map<String, TimestampsRegion> timestampsRegions = new ConcurrentHashMap<>();
+    
+    private SessionFactoryOptions settings;
+    private CacheConfiguration config;
 
     @Override
     public void start(SessionFactoryOptions settings, Map<String, Object> configValues) throws CacheException {
+        logger.info("Starting CustomRegionFactory with settings: {}", settings);
         this.settings = settings;
+        this.config = new CacheConfiguration(configValues);
         this.nextTimestamp.set(System.currentTimeMillis());
+        logger.info("CustomRegionFactory started successfully with configuration: {}", config);
     }
 
     @Override
     public void stop() {
+        logger.info("Stopping CustomRegionFactory");
+
+        for (DomainDataRegion region : domainDataRegions.values()) {
+            try {
+                region.destroy();
+            } catch (Exception e) {
+                logger.warn("Failed to destroy domain data region: {}", region.getName(), e);
+            }
+        }
+        domainDataRegions.clear();
+        
+        for (QueryResultsRegion region : queryResultsRegions.values()) {
+            try {
+                region.destroy();
+            } catch (Exception e) {
+                logger.warn("Failed to destroy query results region: {}", region.getName(), e);
+            }
+        }
+        queryResultsRegions.clear();
+        
+        for (TimestampsRegion region : timestampsRegions.values()) {
+            try {
+                region.destroy();
+            } catch (Exception e) {
+                logger.warn("Failed to destroy timestamps region: {}", region.getName(), e);
+            }
+        }
+        timestampsRegions.clear();
+        
         metricsMap.clear();
+        logger.info("CustomRegionFactory stopped successfully");
     }
 
     @Override
@@ -75,46 +116,96 @@ public class CustomRegionFactory implements RegionFactory {
 
         RegionImpl entityRegion = new RegionImpl(
             regionName,
-            DEFAULT_MAX_ENTRIES,
-            DEFAULT_TTL_MS,
+            config.getMaxEntries(),
+            config.getTtlMillis(),
             metrics
         );
         
-        return new DomainDataRegionAdapter(entityRegion, this, regionConfig);
+        DomainDataRegionAdapter adapter = new DomainDataRegionAdapter(
+            entityRegion, 
+            this, 
+            regionConfig
+        );
+        
+        domainDataRegions.put(regionName, adapter);
+        
+        return adapter;
     }
 
     @Override
     public QueryResultsRegion buildQueryResultsRegion(
             String regionName, 
             SessionFactoryImplementor sessionFactory) {
+        
         RegionImpl queryRegion = new RegionImpl(
             regionName,
-            DEFAULT_MAX_ENTRIES,
-            DEFAULT_TTL_MS,
+            config.getMaxEntries(),
+            config.getTtlMillis(),
             metricsMap.computeIfAbsent(
                 regionName, 
                 k -> new MetricsCollector()
             )
         );
-        return new QueryResultsRegionImpl(this, queryRegion);
+        
+        QueryResultsRegionImpl queryResultsRegion = new QueryResultsRegionImpl(
+            this, 
+            queryRegion
+        );
+        
+        queryResultsRegions.put(regionName, queryResultsRegion);
+        
+        return queryResultsRegion;
     }
 
     @Override
     public TimestampsRegion buildTimestampsRegion(
             String regionName, 
             SessionFactoryImplementor sessionFactory) {
-        throw new UnsupportedOperationException(
-            "Timestamps cache not supported. Region: " + regionName
+        
+        RegionImpl timestampsStorage = new RegionImpl(
+            regionName,
+            config.getMaxEntries(),
+            0, // Timestamps don't need TTL
+            metricsMap.computeIfAbsent(
+                regionName, 
+                k -> new MetricsCollector()
+            )
         );
+        
+        TimestampsRegionImpl timestampsRegion = new TimestampsRegionImpl(
+            this, 
+            timestampsStorage
+        );
+        
+        timestampsRegions.put(regionName, timestampsRegion);
+        
+        return timestampsRegion;
     }
     
+    public void unregisterDomainDataRegion(String regionName) {
+        domainDataRegions.remove(regionName);
+        metricsMap.remove(regionName);
+    }
+    
+    public void unregisterQueryResultsRegion(String regionName) {
+        queryResultsRegions.remove(regionName);
+        metricsMap.remove(regionName);
+    }
+    
+    public void unregisterTimestampsRegion(String regionName) {
+        timestampsRegions.remove(regionName);
+        metricsMap.remove(regionName);
+    }
 
     public MetricsCollector getMetrics(String regionName) {
         return metricsMap.get(regionName);
     }
-    
 
     public Map<String, MetricsCollector> getAllMetrics() {
         return new ConcurrentHashMap<>(metricsMap);
+    }
+    
+    public CacheConfiguration getConfiguration() {
+        return config;
     }
 }

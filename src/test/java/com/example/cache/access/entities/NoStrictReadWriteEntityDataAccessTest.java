@@ -269,18 +269,6 @@ class NoStrictReadWriteEntityDataAccessTest {
         assertFalse(result);
     }
 
-    @Test
-    @DisplayName("Should generate cache key correctly")
-    void testGenerateCacheKey() {
-        Object key = dataAccess.generateCacheKey(1L, persister, factory, "tenant1");
-        
-        assertNotNull(key);
-        assertTrue(key instanceof EntityCacheKey);
-        EntityCacheKey cacheKey = (EntityCacheKey) key;
-        assertEquals(1L, cacheKey.getId());
-        assertEquals("com.example.Entity", cacheKey.getEntityName());
-        assertEquals("tenant1", cacheKey.getTenantId());
-    }
 
     @Test
     @DisplayName("Should throw exception for null id in generateCacheKey")

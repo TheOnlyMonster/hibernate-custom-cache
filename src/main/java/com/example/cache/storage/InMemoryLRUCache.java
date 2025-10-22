@@ -4,9 +4,14 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.example.cache.metrics.MetricsCollector;
 
 public class InMemoryLRUCache<K, V> {
+  private static final Logger logger = LoggerFactory.getLogger(InMemoryLRUCache.class);
+  
   private final ConcurrentHashMap<K, Node> map = new ConcurrentHashMap<>();
   private final int maxEntries;
   private final long ttlMillis;
@@ -39,6 +44,7 @@ public class InMemoryLRUCache<K, V> {
     this.ttlMillis = ttlMillis;
     head.next = tail;
     tail.prev = head;
+    logger.debug("InMemoryLRUCache initialized with maxEntries={}, ttlMillis={}", maxEntries, ttlMillis);
   }
 
 
@@ -136,6 +142,7 @@ public class InMemoryLRUCache<K, V> {
       return; 
     }
     
+    logger.debug("Evicting LRU entry with key: {}", lru.key);
     map.remove(lru.key);
     unlink(lru);
     size.decrementAndGet();
